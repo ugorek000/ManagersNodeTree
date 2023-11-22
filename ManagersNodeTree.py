@@ -82,8 +82,7 @@ class MntNodeAlertness(MntNodeRoot, MntPreChainBase):
             dict_ndLastAlert[self] = alertState
             bpy.app.timers.register(functools.partial(UpdateAlertColor, self, None))
 
-
-class AnyPoll(nodeitems_utils.NodeCategory): #Ждёт своего часа; наверное.
+class AnyPoll(nodeitems_utils.NodeCategory): #Ждёт своего часа; наверное. todo
     @classmethod
     def poll(cls, context):
         return True
@@ -434,7 +433,7 @@ def UpdateNodeNotepadLines(self, context):
         ci.name = str(cyc)
     for cyc in reversed(range(self.linesCount, len)):
         self.memo.remove(cyc)
-class NotepadLine(bpy.types.PropertyGroup):
+class NotepadLine(bpy.types.PropertyGroup): #todo префиксы прилизать у всех.
     body: bpy.props.StringProperty(name="NpLTB", default="")
 
 def NnSetOp(op, opt, who):
@@ -1188,7 +1187,10 @@ import time
 
 def TtfDoNdSearch(ndTar):
     dict_nttfSearchCache[ndTar].list_search.clear()
-    patr = re.compile(ndTar.regex)
+    try:
+        patr = re.compile(ndTar.regex)
+    except:
+        return
     list_tbs = bpy.data.texts
     if ndTar.tbPoi:
         list_tbs = [tb for tb in bpy.data.texts if tb!=ndTar.tbPoi] if ndTar.isReverseTbPoi else [ndTar.tbPoi]
@@ -1219,7 +1221,8 @@ class NodeTextblockTextFinder(MntNodeAlertness):
     linesScaleY: bpy.props.FloatProperty(name="Lines scale Y", min=.4, max=1.5, default=.85)
     decorResults: bpy.props.IntProperty(name="Decor Results", default=3, min=0, max=7)
     def draw_label(self):
-        return "Textblock LineText Finder"
+        #А так же поместить и само выражение.
+        return "Textblock LineText Finder  /"+self.regex+"/" #"–"
     def init(self, context):
         self.regex = "^ *#\w+.+"
         if tb:=bpy.data.texts.get(".Compiled"):
@@ -1295,7 +1298,7 @@ class NodeTextblockTextFinder(MntNodeAlertness):
                 colLy.box()
             if nttfDecorTotal:
                 StencilTotalRow(colTotalTop if nttfDecorTotal>0 else colTotalBottom, ('PRESET', scoDisp), ('ALIGN_JUSTIFY', scoTotAll), decor=1) #RADIOBUT_OFF  PRESET  TRACKER
-        self.ProcAlertState(scoDisp)
+            self.ProcAlertState(scoDisp)
 
 #todo у всех .setdefault(self, None)
 
@@ -1335,7 +1338,7 @@ class AddonPrefs(AddonPrefs):
         #colBox.column().box()
         colBox.prop(self,'allIsPlaceExecAlerts')
         #colBox.column().box()
-        AddThinSep(colBox, 0.5)
+        AddThinSep(colBox, 0.5) #Омг, странно.
         colBox.prop(self,'decorTotalRow')
         colBox.prop(self,'allIsBrightFilters')
         for cls in list_clsToDrawAdn:
