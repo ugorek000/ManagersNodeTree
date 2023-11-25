@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,0,9), 'blender':(4,0,1), #2023.11.25
+           'version':(2,1,0), 'blender':(4,0,1), #2023.11.25
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -24,7 +24,7 @@ def GetDicsIco(tgl):
     return 'DISCLOSURE_TRI_DOWN' if tgl else 'DISCLOSURE_TRI_RIGHT'
 
 pw22 = 1/2.2
-def UpdateAlertColor(self, context):
+def MnUpdateAlertColor(self, context):
     self.use_custom_color = (dict_ndLastAlert[self])and(any(self.alertColor))
     col = self.alertColor
     self.color = (col[0]**pw22, col[1]**pw22, col[2]**pw22)
@@ -39,8 +39,8 @@ list_classes += [ManagersTree]
 
 class MntPadChains():
     def InitNode(self,context):pass
-    def DrawExtNode(self,context,colLy):pass
-    def DrawNode(self,context,colLy):pass
+    def DrawExtNode(self,context,colLy,prefs):pass
+    def DrawNode(self,context,colLy,prefs):pass
     def DrawExtPreChain(self,context,colLy):pass
     def DrawPreChain(self,context,colLy):pass
 class MntPreChainBase(bpy.types.Node, MntPadChains):
@@ -61,7 +61,7 @@ class MntNodeRoot(MntPreChainBase):
     def DrawPreChain(self, context, colLy):
         AddThinSep(colLy, .1) #!.
 class MntNodeAlertness(MntNodeRoot, MntPreChainBase):
-    alertColor: bpy.props.FloatVectorProperty(name="Alert color", default=(0.0, 0.0, 0.0), min=0, max=1, size=3, subtype='COLOR', update=UpdateAlertColor)
+    alertColor: bpy.props.FloatVectorProperty(name="Alert color", default=(0.0, 0.0, 0.0), min=0, max=1, size=3, subtype='COLOR', update=MnUpdateAlertColor)
     def DrawExtPreChain(self, context, colLy):
         MntNodeRoot.DrawExtPreChain(self, context, colLy)
         colLy.row().prop(self,'alertColor')
@@ -72,9 +72,9 @@ class MntNodeAlertness(MntNodeRoot, MntPreChainBase):
         alertState = not not dataState
         if alertState!=dict_ndLastAlert[self]:
             dict_ndLastAlert[self] = alertState
-            bpy.app.timers.register(functools.partial(UpdateAlertColor, self, None))
-#        if any(self.color)!=dict_ndLastAlert[self]: #todo1 протестить
-#            bpy.app.timers.register(functools.partial(UpdateAlertColor, self, None))
+            bpy.app.timers.register(functools.partial(MnUpdateAlertColor, self, None))
+        #if any(self.color)!=dict_ndLastAlert[self]: #Если вдруг заест, протестить это.
+        #    bpy.app.timers.register(functools.partial(MnUpdateAlertColor, self, None))
 
 class AtHomePoll(nodeitems_utils.NodeCategory):
     @classmethod
@@ -83,7 +83,7 @@ class AtHomePoll(nodeitems_utils.NodeCategory):
 class PublicPoll(nodeitems_utils.NodeCategory): #Что-то не работает в остальных.
     @classmethod
     def poll(cls, context):
-        return 1#context.space_data.tree_type!=ManagersTree.bl_idname
+        return context.space_data.tree_type!=ManagersTree.bl_idname
 
 dict_tupleShiftAList = {}
 
@@ -92,13 +92,14 @@ class Sacat(): #"Sacat" = "ShiftA Category".
         self.ClsPoll = ClsPoll
         self.list_orderBlid = []
 
-list_sacatOrder = ["Managers","Special","RNA","Text","Self","Manager"]
+list_sacatOrder = ["Managers", "Special", "RNA", "Text", "Self", "Manager"]
 dist_sacatOrderMap = {li:cyc for cyc, li in enumerate(list_sacatOrder)}
 
 def AddToSacat(list_orderClass, name, ClsPoll):
     dict_tupleShiftAList.setdefault(name, Sacat(ClsPoll))
     dict_tupleShiftAList[name].list_orderBlid += [(li[0], li[1].bl_idname) for li in list_orderClass]
 
+mntSaCatName = 'MANAGER_NODES'
 def RegisterNodeCategories():
     list_nodeCategories = []
     for li in sorted(dict_tupleShiftAList.items(), key=lambda a: dist_sacatOrderMap.get(a[0], -1)):
@@ -107,12 +108,12 @@ def RegisterNodeCategories():
                                                  name.replace("_", ""), #См. AddToSacat(); и имя, и идентификатор, используются с одного и того же (пробел выше не поможет для одного слова).
                                                  items=[nodeitems_utils.NodeItem(li[1]) for li in sorted(li[1].list_orderBlid, key=lambda a:a[0])]))
     try:
-        nodeitems_utils.register_node_categories('CUSTOM_NODES', list_nodeCategories)
+        nodeitems_utils.register_node_categories(mntSaCatName, list_nodeCategories)
     except:
-        nodeitems_utils.unregister_node_categories('CUSTOM_NODES')
-        nodeitems_utils.register_node_categories('CUSTOM_NODES', list_nodeCategories)
+        nodeitems_utils.unregister_node_categories(mntSaCatName)
+        nodeitems_utils.register_node_categories(mntSaCatName, list_nodeCategories)
 def UnregisterNodeCategories():
-    nodeitems_utils.unregister_node_categories('CUSTOM_NODES')
+    nodeitems_utils.unregister_node_categories(mntSaCatName)
 
 class PanelManagerNodesNode(bpy.types.Panel):
     bl_idname = 'UU_PT_ManagerNodesNode'
@@ -236,7 +237,6 @@ def StencilAddFilterProp(self, prefs, where, prop='filter', ico=None):
     evaled = EvalAndAddPropExtended(row, self, prop, f"re.compile(var)", locals={'var':getattr(self, prop)}, icon='SORTBYEXT')
     return evaled[1] if evaled[0] else None
 
-
 def StencilTotalRow(prefs, where, *tupleDataIcos, decor=0):
     box = GetLbBoxRaw(where.row() if decor else where)
     rowMain = box.row(align=True)
@@ -251,19 +251,31 @@ def StencilTotalRow(prefs, where, *tupleDataIcos, decor=0):
         rowLabel.label(text="Total"*dec1+":"*dec0, icon='ASSET_MANAGER' if dec0 else 'NONE')
     rowLabel.active = decorTotalRow//8%2
     ##
-    isCanonTotal = length(tupleDataIcos)==2
+    isAutoCanonTotal = (length(tupleDataIcos)==2)and(length(tupleDataIcos[0])==2)and(length(tupleDataIcos[0])==2)
     type_tuple = type(())
-    for cyc, dt in enumerate(tupleDataIcos):
-        isTuple = type(dt)==type_tuple
-        rowIco = rowTheme.row(align=True)
-        rowIco.label(icon=dt[0] if isTuple else 'RADIOBUT_ON') #RADIOBUT_ON  SNAP_FACE
-        rowIco.active = decorTotalRow//2%2
-        AddThinSep(rowIco, 1, 0.5)
+    for cyc, hh in enumerate(tupleDataIcos):
+        isTuple = type(hh)==type_tuple
+        isMultiTot = (isTuple)and(length(hh)>2)
+        if type(hh)!=str:
+            rowIco = rowTheme.row(align=True)
+            rowIco.label(icon=hh[0] if isTuple else 'RADIOBUT_ON') #RADIOBUT_ON  SNAP_FACE
+            rowIco.active = decorTotalRow//2%2
+            AddThinSep(rowIco, 1, 0.5)
         rowData = rowTheme.row(align=True)
         rowData.alignment = 'LEFT'
-        rowData.label(text=str(dt[1] if isTuple else dt))
+        if isMultiTot:
+            rowTxt = rowData.row(align=True)
+            rowTxt.alignment = 'LEFT'
+            rowTxt.label(text=str(hh[1]))
+            rowDiv = rowTxt.row(align=True)
+            rowDiv.alignment = 'LEFT'
+            rowDiv.label(text="/")
+            rowDiv.active = False
+            rowTxt.label(text=str(hh[2]))
+        else:
+            rowData.label(text=str(hh[1] if isTuple else hh))
         rowData.active = decorTotalRow%2
-        if (isCanonTotal)and(cyc==0)and(decorTotalRow//4%2):
+        if (isAutoCanonTotal)and(cyc==0)and(decorTotalRow//4%2):
             rowDiv = rowTheme.row(align=True)
             rowDiv.alignment = 'LEFT'
             rowDiv.label(text="/")
@@ -297,11 +309,11 @@ class NodeManagersNodeTree(MntNodeRoot):
     @classmethod
     def poll(cls, tree):
         return tree.bl_idname==ManagersTree.bl_idname
-    def DrawExtNode(self, context, colLy):
+    def DrawExtNode(self, context, colLy, prefs):
         colLy.operator(OpManagersNodeTree.bl_idname, text="Offset nodes to world origin").who = repr(self)
         if not context.preferences.use_preferences_save:
             colLy.operator('wm.save_userpref', text="Save Preferences"+" *"*context.preferences.is_dirty)
-    def DrawNode(self, context, colLy):
+    def DrawNode(self, context, colLy, prefs):
         if True:
             rowLabel = colLy.row(align=True)
             rowLabel.alignment = 'CENTER'
@@ -340,7 +352,7 @@ class NodeQuickNote(MntNodeAlertness):
     bl_width_min = 64
     bl_width_default = 256
     note: bpy.props.StringProperty(name="Note body", default="")
-    def DrawNode(self, context, layout):
+    def DrawNode(self, context, layout, prefs):
         layout.prop(self,'note', text="")
         self.ProcAlertState(self.note)
 
@@ -375,7 +387,7 @@ class NnOp(bpy.types.Operator):
                     context.area.tag_redraw()
         return {'FINISHED'}
 
-def UpdateNodeNnNotepadLines(self, context):
+def NnUpdateNodeNnNotepadLines(self, context):
     len = length(self.memo)
     for cyc in range(len, self.linesCount):
         ci = self.memo.add()
@@ -394,10 +406,10 @@ class NodeNotepad(MntNodeAlertness):
     bl_width_max = 2048
     bl_width_min = 140
     bl_width_default = 384
-    linesCount: bpy.props.IntProperty(name="Count of lines", min=0, max=256, soft_max=32, default=5, update=UpdateNodeNnNotepadLines)
+    linesCount: bpy.props.IntProperty(name="Count of lines", min=0, max=256, soft_max=32, default=5, update=NnUpdateNodeNnNotepadLines)
     memo: bpy.props.CollectionProperty(type=NnNotepadLine)
     def InitNode(self, context):
-        self.linesCount = 5 #Заметка: UpdateNodeNnNotepadLines().
+        self.linesCount = 5 #Заметка: NnUpdateNodeNnNotepadLines().
     def DrawInAddon(self, context, colLy, prefs):
         if colBox:=GetNodeBoxDiscl(colLy, prefs,'disclMnNn', self):
             colProps = colBox.column(align=True)
@@ -535,7 +547,7 @@ def NipmAddTableOfProps(self, prefs, where, data, list_props, colSpec=None): #Н
         try:
             exec(self.precomp, globals(), None)
         except Exception as ex:
-            (colSpec if colSpec else colTable) . label(text=str(ex)+Eix(2), icon='ERROR') #Отображать в перезаписываемой или по "хронологии".
+            (colSpec if colSpec else colTable).label(text=str(ex)+Eix(2), icon='ERROR') #Отображать в перезаписываемой или по "хронологии".
             return
         sco = 0 #Если нужно будет возвращать, то вынести за пределы большого try, (но не помню почему).
         for dt in data:
@@ -595,7 +607,7 @@ def NipmAddTableOfProps(self, prefs, where, data, list_props, colSpec=None): #Н
 
 def NipmSplitPropTxtToList(txt):
     return [li for li in re.findall("[^;,]+", txt.replace(" ", ""))]
-def UpdateNodeTableFilters(self, context):
+def NipmUpdateNodeTableFilters(self, context):
     for li in NipmSplitPropTxtToList(self.props):
         if self.filters.get(li, None) is None:
             ci = self.filters.add()
@@ -625,7 +637,7 @@ class NodeItemPropsTable(MntNodeAlertness):
     bl_width_min = 256
     bl_width_default = 640
     path:    bpy.props.StringProperty(name="Path",    default="")
-    props:   bpy.props.StringProperty(name="Props",   default="", update=UpdateNodeTableFilters)
+    props:   bpy.props.StringProperty(name="Props",   default="", update=NipmUpdateNodeTableFilters)
     precomp: bpy.props.StringProperty(name="Precomp", default="")
     filters: bpy.props.CollectionProperty(type=NipmTablePropFilter)
     isShowFilterErrors: bpy.props.BoolProperty(name="Show rows with errors", default=True)
@@ -646,7 +658,7 @@ class NodeItemPropsTable(MntNodeAlertness):
     def DrawExtNode(self, context, colLy, prefs):
         colLy.prop(self,'isShowFilterErrors')
         self.DrawInAddon(context, colLy, prefs)
-        PlaceDebugProp(colLy, self,'filters') #todo1 неплохо было бы запариться с отчисткой; и в MnAm тоже.
+        PlaceDebugProp(colLy, self,'filters') #todo0 неплохо было бы запариться с отчисткой; и в MnAm тоже.
     def DrawNode(self, context, colLy, prefs):
         isPlaceExecAlerts = prefs.allIsPlaceExecAlerts
         colNodeProps = colLy.column(align=True)
@@ -777,7 +789,7 @@ def NamCreateNewCi(ndTar, adnName):
     ci.txt = adnName
 
 isWorking = False
-def UpdateNameOfAddon(self, context):
+def NamUpdateNameOfAddon(self, context):
     global isWorking
     if isWorking:
         return
@@ -786,7 +798,7 @@ def UpdateNameOfAddon(self, context):
     isWorking = False
 class NamAddons(bpy.types.PropertyGroup):
     discl: bpy.props.BoolProperty(name="Discl", default=False)
-    txt: bpy.props.StringProperty(name="Addon name", default="", update=UpdateNameOfAddon)
+    txt: bpy.props.StringProperty(name="Addon name", default="", update=NamUpdateNameOfAddon)
 
 def NamItemsAddonFilter(self, context):
     list_items = [ ('All', "All", ""), ('User',"User","") ]
@@ -1109,7 +1121,7 @@ class NodeAddonsManager(MntNodeAlertness): #Для этого аддона ка�
 
 list_classes += [NamAddons, NamOp]
 list_classes += [NodeAddonsManager]
-AddToSacat([ (0,NodeAddonsManager) ], "Special", AtHomePoll)
+AddToSacat([ (1,NodeAddonsManager) ], "Special", AtHomePoll)
 AddToSacat([ (999,NodeAddonsManager) ], "Manager", PublicPoll)
 
 class AddonPrefs(AddonPrefs):
@@ -1132,7 +1144,7 @@ class NttfOp(bpy.types.Operator):
     opt: bpy.props.StringProperty()
     who: bpy.props.StringProperty()
     dest: bpy.props.StringProperty()
-    def execute(self, context):
+    def invoke(self, context, event):
         if self.who:
             ndRepr = eval(self.who)
             match self.opt:
@@ -1144,7 +1156,7 @@ class NttfOp(bpy.types.Operator):
                     windowTar = None
                     areaTar = None
                     spaceTar = None
-                    for wn in context.window_manager.windows:
+                    for wn in context.window_manager.windows if not event.shift else [context.window]:
                         for ar in wn.screen.areas:
                             if ar.type=='TEXT_EDITOR':
                                 sp = ar.spaces[0]
@@ -1169,10 +1181,11 @@ class NttfOp(bpy.types.Operator):
         return {'FINISHED'}
 
 class TtfResult:
-    def __init__(self, inx, ln, rex):
+    def __init__(self, inx, ln, rex, value):
         self.inx = inx
         self.ln = ln
         self.rex = rex
+        self.value = value
 class TtfSearch:
     def __init__(self, tbRef, zlen):
         self.tbRef = tbRef
@@ -1191,25 +1204,30 @@ import time
 def NttfDoNdSearch(ndTar):
     dict_nttfSearchCache[ndTar].list_search.clear()
     dict_nttfSearchCache[ndTar].set_unique.clear()
-    list_search = dict_nttfSearchCache[ndTar].list_search
-    set_unique = dict_nttfSearchCache[ndTar].set_unique
-    try:
-        patr = re.compile(ndTar.regex)
-    except:
-        return
-    list_tbs = bpy.data.texts
-    if ndTar.tbPoi:
-        list_tbs = [tb for tb in bpy.data.texts if tb!=ndTar.tbPoi] if ndTar.isReverseTbPoi else [ndTar.tbPoi]
-    if getattr(bpy.types.Text,'order', False):
-        list_tbs.sort(key=lambda a: a.order)
-    for tb in list_tbs:
-        ttfSr = TtfSearch(tb, length(str(length(tb.lines))))
-        for cyc, ln in enumerate(tb.lines):
-            rex = patr.search(ln.body)
-            if rex:
-                ttfSr.list_result.append(TtfResult(cyc+1, ln, rex))
-                set_unique.add(rex)
-        list_search.append(ttfSr)
+    scoTotAll = 0
+    if ndTar.regex:
+        list_search = dict_nttfSearchCache[ndTar].list_search
+        set_unique = dict_nttfSearchCache[ndTar].set_unique
+        try:
+            patr = re.compile(ndTar.regex)
+        except:
+            return
+        if ndTar.tbPoi:
+            list_tbs = [tb for tb in bpy.data.texts if tb!=ndTar.tbPoi] if ndTar.isReverseTbPoi else [ndTar.tbPoi]
+        else:
+            list_tbs = [*bpy.data.texts]
+        if getattr(bpy.types.Text,'order', False):
+            list_tbs.sort(key=lambda a: a.order)
+        for tb in list_tbs:
+            ttfSr = TtfSearch(tb, length(str(length(tb.lines))))
+            for cyc, ln in enumerate(tb.lines):
+                rex = patr.search(ln.body)
+                if rex:
+                    ttfSr.list_result.append(TtfResult(cyc+1, ln, rex, rex.group()))
+                    set_unique.add(rex)
+            list_search.append(ttfSr)
+            scoTotAll += length(tb.lines)
+    dict_nttfSearchCache[ndTar].scoTotAll = scoTotAll
     dict_nttfSearchCache[ndTar].lastTimeRaw = time.time()
 
 def NttfUpdateRegex(self, context):
@@ -1249,7 +1267,8 @@ class NodeTextblockTextFinder(MntNodeAlertness):
         self.DrawInAddon(context, colLy, prefs)
     def DrawNode(self, context, colLy, prefs):
         dict_nttfSearchCache.setdefault(self, TtfFinder())
-        if time.time()-dict_nttfSearchCache[self].lastTimeRaw>1.0:
+        finder = dict_nttfSearchCache[self]
+        if time.time()-finder.lastTimeRaw>1.0:
             NttfDoNdSearch(self)
         isDisplayAsProp = self.isDisplayAsProp
         decorResults = self.decorResults
@@ -1285,9 +1304,8 @@ class NodeTextblockTextFinder(MntNodeAlertness):
             colFounds = colLy.column(align=True)
             colTotalBottom = colLy.column(align=True)
             scoDisp = 0
-            scoTotAll = 0
             set_dataTb = {tb for tb in bpy.data.texts}
-            list_search = dict_nttfSearchCache[self].list_search
+            list_search = finder.list_search
             for fdsr in reversed(list_search):
                 if fdsr.tbRef not in set_dataTb:
                     list_search.remove(fdsr)
@@ -1306,13 +1324,13 @@ class NodeTextblockTextFinder(MntNodeAlertness):
                     for li in fdsr.list_result:
                         if isDisplayUnique:
                             if isDisplayUnique==1:
-                                if li.rex in set_uniqueDisplayedLocal:
+                                if li.value in set_uniqueDisplayedLocal:
                                     continue
-                                set_uniqueDisplayedLocal.add(li.rex)
+                                set_uniqueDisplayedLocal.add(li.value)
                             if isDisplayUnique==2:
-                                if li.rex in set_uniqueDisplayed:
+                                if li.value in set_uniqueDisplayed:
                                     continue
-                                set_uniqueDisplayed.add(li.rex)
+                                set_uniqueDisplayed.add(li.value)
                         rowResult = (colList.row() if nttfItemsAlignment else colList).row(align=True)
                         rowInx = rowResult.row(align=True)
                         rowInx.alignment = 'CENTER'
@@ -1321,7 +1339,7 @@ class NodeTextblockTextFinder(MntNodeAlertness):
                         if isDisplayAsProp:
                             rowResult.prop(li.ln,'body', text="")
                         else:
-                            rowResult.label(text=li.rex.group(0))
+                            rowResult.label(text=li.value)
                         if decorResults//8%2:
                             rowOp = rowResult.row(align=True)
                             op = rowOp.operator(NttfOp.bl_idname, text="", icon='RESTRICT_VIEW_ON') #RESTRICT_VIEW_ON  FORWARD
@@ -1331,11 +1349,10 @@ class NodeTextblockTextFinder(MntNodeAlertness):
                             rowOp.active = False
                         rowResult.active = decorResults//2%2
                         scoDisp += 1
-                scoTotAll += length(fdsr.tbRef.lines)
             if nttfDecorTable%2:
                 colLy.box()
             if nttfDecorTotal:
-                StencilTotalRow(prefs, colTotalTop if nttfDecorTotal>0 else colTotalBottom, ('PRESET', scoDisp), ('ALIGN_JUSTIFY', scoTotAll), decor=1) #RADIOBUT_OFF  PRESET  TRACKER
+                StencilTotalRow(prefs, colTotalTop if nttfDecorTotal>0 else colTotalBottom, ('PRESET', scoDisp), ('ALIGN_JUSTIFY', finder.scoTotAll), decor=1) #RADIOBUT_OFF  PRESET  TRACKER
             self.ProcAlertState(scoDisp)
 
 list_classes += [NttfOp]
@@ -1351,6 +1368,108 @@ class AddonPrefs(AddonPrefs):
 
 list_clsToDrawAdn.append(NodeTextblockTextFinder)
 
+class NodeUvManager(MntNodeAlertness):
+    bl_idname = 'MntUvManager'
+    bl_label = "UV Manager"
+    bl_width_max = 2048
+    bl_width_min = 256
+    bl_width_default = 448
+    filterMh: bpy.props.StringProperty(name="filterMh", default="")
+    filterUv: bpy.props.StringProperty(name="filterUv", default="")
+    isHierarchy: bpy.props.BoolProperty(name="Display as hierarchy", default=False)
+    displayActiveRender: bpy.props.IntProperty(name="Display active render", default=0, min=0, max=2)
+    def InitNode(self, context):
+        self.filterMh = ".*"
+        self.filterUv = ".*"
+        #self.alertColor = (0.005556, 0.105280, 0.094881)
+    def DrawExtNode(self, context, colLy, prefs):
+        colLy.prop(self,'isHierarchy')
+        colLy.prop(self,'displayActiveRender')
+    def DrawNode(self, context, colLy, prefs):
+        colFilters = colLy.column(align=True)
+        if not(patrUv:=StencilAddFilterProp(self, prefs, colFilters.row(), prop='filterUv', ico='UV')):
+            return
+        if not(patrMh:=StencilAddFilterProp(self, prefs, colFilters, prop='filterMh', ico='MESH_DATA')):
+            return
+        colLy.box()
+        colList = colLy.column(align=True)
+        scoUv = 0
+        scoMh = 0
+        totUv = 0
+        displayActiveRender = self.displayActiveRender
+        if self.isHierarchy:
+            for mh in bpy.data.meshes:
+                if patrMh.search(mh.name):
+                    len = length(mh.uv_layers)
+                    totUv += len
+                    if [True for uv in mh.uv_layers if patrUv.search(uv.name)]:
+                        box = colList.row().box()
+                        col = box.column(align=True)
+                        col.row().prop(mh,'name', text="", icon='MESH_DATA')
+                        row = col.row(align=True)
+                        row.label(icon='BLANK1')
+                        col = row.column(align=True)
+                        can = (len>1)or(displayActiveRender!=1)
+                        for uv in mh.uv_layers:
+                            if patrUv.search(uv.name):
+                                ico = 'RESTRICT_RENDER_OFF' if uv.active_render else 'RESTRICT_RENDER_ON'
+                                row = col.row(align=True)
+                                row.prop(uv,'name', text="", icon='UV')
+                                if (can)and(displayActiveRender):
+                                    row.prop(uv,'active_render', text="", icon=ico, emboss=False)
+                                scoUv += 1
+                    scoMh += 1
+        else:
+            for mh in bpy.data.meshes:
+                if patrMh.search(mh.name):
+                    can = (length(mh.uv_layers)>1)or(displayActiveRender!=1)
+                    for uv in mh.uv_layers:
+                        if patrUv.search(uv.name):
+                            row = colList.row(align=True)
+                            ico = 'RESTRICT_RENDER_OFF' if uv.active_render else 'RESTRICT_RENDER_ON'
+                            row.prop(uv,'name', text="", icon='UV')
+                            if displayActiveRender:
+                                if can:
+                                    row.prop(uv,'active_render', text="", icon=ico, emboss=False)
+                                else:
+                                    row.label(icon='BLANK1')
+                            row.prop(mh,'name', text="", icon='MESH_DATA')
+                            scoUv += 1
+                        totUv += 1
+                    scoMh += 1
+        StencilTotalRow(prefs, colLy, ('MESH_DATA', scoMh, length(bpy.data.meshes)), " >> ", ('UV', scoUv, totUv), decor=1)
+        self.ProcAlertState(scoUv)
+
+list_classes += [NodeUvManager]
+AddToSacat([ (0,NodeUvManager) ], "Managers", AtHomePoll)
+AddToSacat([ (999,NodeUvManager) ], "Manager", PublicPoll)
+
+def NcnUpdateCol(self, context):
+    self.use_custom_color = True
+    col = self.col
+    self.color = (col[0]**pw22, col[1]**pw22, col[2]**pw22)
+class NodeColorNote(MntNodeRoot):
+    bl_idname = 'MntNodeColorNote'
+    bl_label = "Color note"
+    bl_width_max = 256
+    bl_width_min = 64
+    bl_width_default = 140
+    col: bpy.props.FloatVectorProperty(name="Color", size=3, soft_min=0, soft_max=1, subtype='COLOR')#, update=NcnUpdateCol)
+    decor: bpy.props.IntProperty(name="Decor", default=2, min=2, max=6)
+    def InitNode(self, context):
+        #self.col = (random.random(), random.random(), random.random())
+        self.col = (1,1,1)
+    def DrawExtNode(self, context, colLy, prefs):
+        colLy.prop(self,'decor')
+    def DrawNode(self, context, colLy, prefs):
+        row = colLy.row()
+        row.prop(self,'col', text="")
+        row.scale_y = 0.5*self.decor
+
+list_classes += [NodeColorNote]
+AddToSacat([ (0,NodeColorNote) ], "Special", AtHomePoll)
+AddToSacat([ (999,NodeColorNote) ], "Manager", PublicPoll)
+
 def ToggleRegMnnPanel(self, context):
     if self.aMnnPanel:
         bpy.utils.register_class(PanelManagerNodesNode)
@@ -1364,7 +1483,6 @@ class AddonPrefs(AddonPrefs):
     allIsPlaceExecAlerts: bpy.props.BoolProperty(name="Place exec alerts", default=True)
     decorTotalRow: bpy.props.IntProperty(name="Decor Total Row", default=21, min=0, max=63)
     allIsBrightFilters: bpy.props.BoolProperty(name="Bright filters", default=True)
-#    isHideOnlyOne: bpy.props.BoolProperty(name="Hide if only one", default=True)
     def draw(self, context):
         colLy = self.layout.column()
         box = GetLabeledDoubleBox(colLy, "Main", active=True, alignment='CENTER')
@@ -1373,7 +1491,7 @@ class AddonPrefs(AddonPrefs):
         #colBox.column().box()
         colBox.prop(self,'allIsPlaceExecAlerts')
         #colBox.column().box()
-        AddThinSep(colBox, 0.5) #Немножко декора; оступы меж думя галками складываются; а так же отступ от (потенциальной) коробки.
+        AddThinSep(colBox, 0.5) #Немножко декора; оступы меж двумя галками складываются; а так же отступ от (потенциальной) коробки.
         colBox.prop(self,'decorTotalRow')
         colBox.prop(self,'allIsBrightFilters')
         for cls in list_clsToDrawAdn:
