@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,1,1), 'blender':(4,0,1), #2023.11.25
+           'version':(2,2,0), 'blender':(4,0,1), #2023.11.27
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -8,9 +8,11 @@ bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
 thisAddonName = bl_info['name']
 
 from builtins import len as length
-import bpy, re
-import math
+import bpy, re, ctypes
 import nodeitems_utils
+import math
+
+#todo0 а что если "покрасить" заголовки?
 
 list_classes = []
 list_clsToDrawAdn = []
@@ -23,25 +25,10 @@ dict_ndLastAlert = {}
 def GetDicsIco(tgl):
     return 'DISCLOSURE_TRI_DOWN' if tgl else 'DISCLOSURE_TRI_RIGHT'
 
-pw22 = 1/2.2
-def MnUpdateAlertColor(self, context):
-    self.use_custom_color = (dict_ndLastAlert[self])and(any(self.alertColor))
-    col = self.alertColor
-    self.color = (col[0]**pw22, col[1]**pw22, col[2]**pw22)
-
-def AddThinSep(where, scaleY=0.25, scaleX=1.0):
-    row = where.row(align=True)
-    row.separator()
-    row.scale_x = scaleX
-    row.scale_y = scaleY
-
-def PlacePropColor(where, who, prop, txt=None):
-    row = where.row()
-    rowLabel = row.row()
-    rowLabel.alignment = 'LEFT'
-    rowLabel.label(text=txt if txt else who.bl_rna.properties[prop].name+":")
-    row.alignment = 'EXPAND'
-    row.prop(who, prop, text="")
+#todo1 новые ноды:
+#custom props manager full!
+#менеджер кеймапов с обоими фильтрами одновременно
+#icon viewer!
 
 class ManagersTree(bpy.types.NodeTree):
     """For .blend and other high level management"""
@@ -51,23 +38,38 @@ class ManagersTree(bpy.types.NodeTree):
 
 list_classes += [ManagersTree]
 
-class MntPadChains():
+pw22 = 1/2.2
+def MnUpdateAlertColor(self, context):
+    self.use_custom_color = (dict_ndLastAlert[self])and(any(self.alertColor))
+    col = self.alertColor
+    self.color = (col[0]**pw22, col[1]**pw22, col[2]**pw22)
+
+dict_nclassBlidDone = {}
+def MnUpdateNclass(nd):
+    BNode.get_fields(nd).typeinfo.contents.nclass = nd.nclass
+
+class MntPads():
+    nclass = 0
     def InitNodePreChain(self,context):pass
     def InitNode(self,context):pass
     def DrawExtPreChain(self,context,colLy):pass
     def DrawExtNode(self,context,colLy,prefs):pass
     def DrawPreChain(self,context,colLy):pass
     def DrawNode(self,context,colLy,prefs):pass
-class MntPreChainBase(bpy.types.Node, MntPadChains):
-    def init(self, context): #Цепного init'а пока нету.
-        #self.prefs = Prefs() #Почему-то не работает.
+class MntPreChainBase(bpy.types.Node, MntPads):
+    def init(self, context):
+        #self.prefs = Prefs() #Идея почему-то не прокатила.
         self.InitNodePreChain(context)
         self.InitNode(context)
+        MnUpdateNclass(self)
     def draw_buttons_ext(self, context, layout):
         colLy = layout.column()
         self.DrawExtPreChain(context, colLy)
         self.DrawExtNode(context, colLy, Prefs())
     def draw_buttons(self, context, layout):
+        if not dict_nclassBlidDone.get(self.bl_idname, False):
+            bpy.app.timers.register(functools.partial(MnUpdateNclass, self))
+            dict_nclassBlidDone[self.bl_idname] = True
         colLy = layout.column()
         self.DrawPreChain(context, colLy)
         self.DrawNode(context, colLy, Prefs())
@@ -80,7 +82,15 @@ class MntNodeAlertness(MntNodeRoot, MntPreChainBase):
     alertColor: bpy.props.FloatVectorProperty(name="Alert color", default=(0.0, 0.0, 0.0), min=0, max=1, size=3, subtype='COLOR', update=MnUpdateAlertColor)
     def DrawExtPreChain(self, context, colLy):
         MntNodeRoot.DrawExtPreChain(self, context, colLy)
-        colLy.row().prop(self,'alertColor')
+        if False:
+            rowCol = colLy.row()
+            rowLabel = rowCol.row()
+            rowLabel.alignment = 'LEFT'
+            rowLabel.label(text=self.bl_rna.properties['alertColor'].name+":")
+            rowCol.alignment = 'EXPAND'
+            rowCol.prop(self,'alertColor', text="")
+        else:
+            colLy.row().prop(self,'alertColor')
     def DrawPreChain(self, context, colLy):
         dict_ndLastAlert.setdefault(self, False)
         MntNodeRoot.DrawPreChain(self, context, colLy)
@@ -89,8 +99,10 @@ class MntNodeAlertness(MntNodeRoot, MntPreChainBase):
         if alertState!=dict_ndLastAlert[self]:
             dict_ndLastAlert[self] = alertState
             bpy.app.timers.register(functools.partial(MnUpdateAlertColor, self, None))
-        #if any(self.color)!=dict_ndLastAlert[self]: #Если вдруг заест, протестить это.
-        #    bpy.app.timers.register(functools.partial(MnUpdateAlertColor, self, None))
+#        if any(self.color)!=dict_ndLastAlert[self]: #Если вдруг заест, протестить это.
+#            bpy.app.timers.register(functools.partial(MnUpdateAlertColor, self, None))
+class MntNodeOnlyResult():
+    isOnlyMatter: bpy.props.BoolProperty(name="Matter display only", default=False) #todo2
 
 class AtHomePoll(nodeitems_utils.NodeCategory):
     @classmethod
@@ -108,12 +120,30 @@ class Sacat(): #"Sacat" = "ShiftA Category".
         self.ClsPoll = ClsPoll
         self.list_orderBlid = []
 
-list_sacatOrder = ["Managers", "Special", "RNA", "Text", "Solemn", "Self", "Manager"]
+list_sacatOrder = ["Managers", "Special", "RNA", "Color", "Text", "Solemn", "Script", "Self", "Manager", "Dev"]
 dist_sacatOrderMap = {li:cyc for cyc, li in enumerate(list_sacatOrder)}
 
 def AddToSacat(list_orderClass, name, ClsPoll):
     dict_tupleShiftAList.setdefault(name, Sacat(ClsPoll))
     dict_tupleShiftAList[name].list_orderBlid += [(li[0], li[1].bl_idname) for li in list_orderClass]
+
+class SubMenuPublicManagers(bpy.types.Menu):
+    bl_idname = "NODE_MT_public_managers"
+    bl_label = "Manager"
+    def draw(self, context):
+        colLy = self.layout.column()
+        op = colLy.operator('node.add_node', text="Color Note")
+        op.use_transform = True
+        op.type = 'MntNodeColorNote'
+        op = colLy.operator('node.add_node', text="Color Notepad")
+        op.use_transform = True
+        op.type = 'MntNodeColorNotepad'
+def DrawPublicMnt(self, context):
+    self.layout.menu(SubMenuPublicManagers.bl_idname)
+def DoPublish(tgl):
+    for txt in {"shader", "geometry", "compositor", "texture"}:
+        eval(f"bpy.types.NODE_MT_{txt}_node_add_all.{'append' if tgl else 'remove'}")(DrawPublicMnt)
+list_classes += [SubMenuPublicManagers]
 
 mntSaCatName = 'MANAGER_NODES'
 def RegisterNodeCategories():
@@ -128,8 +158,10 @@ def RegisterNodeCategories():
     except:
         nodeitems_utils.unregister_node_categories(mntSaCatName)
         nodeitems_utils.register_node_categories(mntSaCatName, list_nodeCategories)
+    DoPublish(True)
 def UnregisterNodeCategories():
     nodeitems_utils.unregister_node_categories(mntSaCatName)
+    DoPublish(False)
 
 class PanelManagerNodesNode(bpy.types.Panel):
     bl_idname = 'UU_PT_ManagerNodesNode'
@@ -145,14 +177,97 @@ class PanelManagerNodesNode(bpy.types.Panel):
         tree = context.space_data.edit_tree
         aNd = tree.nodes.active
         if aNd:
-            colNd = GetLabeledDoubleBox(colLy, aNd.bl_label, 'NODE').column()#align=True)
-            colNd.prop(aNd,'width', text="Node width", slider=True)
-            if hasattr(aNd,'alertColor'):
-                PlacePropColor(colNd.row(), aNd,'alertColor')
-            if hasattr(context.active_node, "DrawExtNode"):
-                aNd.DrawExtNode(context, colLy, Prefs())
+            AddBoxLabelDir(colLy, aNd.bl_label, icon='NODE')
+            aNd.draw_buttons_ext(context, colLy)
         else:
             AddBoxLabelDir(colLy, "", 'NODE', active=False)
+
+class StructBase(ctypes.Structure):
+    _subclasses = []
+    __annotations__ = {}
+    def __init_subclass__(cls):
+        cls._subclasses.append(cls)
+    def InitStructs():
+        for cls in StructBase._subclasses:
+            fields = []
+            for field, value in cls.__annotations__.items():
+                fields.append((field, value))
+            if fields:
+                cls._fields_ = fields
+            cls.__annotations__.clear()
+        StructBase._subclasses.clear()
+
+class BNodeType(StructBase):
+    idname:         ctypes.c_char*64
+    type:           ctypes.c_int
+    ui_name:        ctypes.c_char*64
+    ui_description: ctypes.c_char*256
+    ui_icon:        ctypes.c_int
+    char:           ctypes.c_void_p
+    width:          ctypes.c_float 
+    minwidth:       ctypes.c_float
+    maxwidth:       ctypes.c_float
+    height:         ctypes.c_float
+    minheight:      ctypes.c_float
+    maxheight:      ctypes.c_float
+    maxheight:      ctypes.c_float
+    nclass:         ctypes.c_int16 #Эй, вы припёрлись сюда, чтобы взять цветные заголовки себе? Неет))00)0 Так дело не пойдет.
+                                             #Попробуйте отреверсинженерить самостоятельно. Или запалите одной звездой на гитхабе.
+                                             #И вообще поищите кого-нибудь другого энтузиастского кодера, который додумался до подобного раньше меня.
+class BNode(StructBase):
+    next:       ctypes.c_void_p
+    prev:       ctypes.c_void_p
+    inputs:     ctypes.c_void_p*2
+    outputs:    ctypes.c_void_p*2
+    name:       ctypes.c_char*64
+    identifier: ctypes.c_int
+    flag:       ctypes.c_int
+    idname:     ctypes.c_char*64
+    typeinfo:   ctypes.POINTER(BNodeType)
+    @classmethod
+    def get_fields(cls, so):
+        return cls.from_address(so.as_pointer())
+
+StructBase.InitStructs()
+
+#test dev#
+
+#define NODE_CLASS_INPUT 0
+#define NODE_CLASS_OUTPUT 1
+#define NODE_CLASS_OP_COLOR 3
+#define NODE_CLASS_OP_VECTOR 4
+#define NODE_CLASS_OP_FILTER 5
+#define NODE_CLASS_GROUP 6
+#define NODE_CLASS_CONVERTER 8
+#define NODE_CLASS_MATTE 9
+#define NODE_CLASS_DISTORT 10
+#define NODE_CLASS_PATTERN 12
+#define NODE_CLASS_TEXTURE 13
+#define NODE_CLASS_SCRIPT 32
+#define NODE_CLASS_INTERFACE 33
+#define NODE_CLASS_SHADER 40
+#define NODE_CLASS_GEOMETRY 41
+#define NODE_CLASS_ATTRIBUTE 42
+#define NODE_CLASS_LAYOUT 100
+
+list_classesDev = []
+
+for num in [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 32, 33, 40, 41, 42, 100]:
+    exec(f"class NodeTestDev{num}(MntNodeRoot):"+"\n"+f" bl_idname = 'NodeTestDev{num}'"+"\n"+f" bl_label = 'NodeTestDev{num}'"+"\n"+f" nclass = {num}")
+    print("ZXRQN █", f"list_classesDev = [NodeTestDev{num}]");
+    exec(f"list_classesDev.append(NodeTestDev{num})")
+
+list_classes += list_classesDev
+for li in list_classesDev:
+    AddToSacat([ (0,li) ], "Dev", AtHomePoll)
+
+#end test dev#
+
+def AddThinSep(where, scaleY=0.25, scaleX=1.0):
+    row = where.row(align=True)
+    row.separator()
+    row.scale_x = scaleX
+    row.scale_y = scaleY
 
 def GetLbBoxRaw(where, scale_y=0.5, scale_x=1.0):
     box = where.box()
@@ -337,16 +452,15 @@ class NodeDummy(bpy.types.Node):
     bl_label = "Dummy Node"
     bl_width_max = 1024
     bl_width_min = 0
-#    @classmethod
-#    def poll(cls, tree):
-#        return tree.bl_idname==ManagersTree.bl_idname
+    @classmethod
+    def poll(cls, tree):
+        return tree.bl_idname==ManagersTree.bl_idname
     def draw_buttons_ext(self, context, layout):
         layout.prop(self,'width', text="Node width", slider=True)
 
 list_classes += [NmntOp]
 list_classes += [NodeManagersNodeTree, NodeDummy]
 AddToSacat([ (0,NodeManagersNodeTree), (1,NodeDummy) ], "Self", AtHomePoll)
-AddToSacat([ (999,NodeManagersNodeTree), (999,NodeDummy) ], "Manager", PublicPoll)
 
 class NodeQuickNote(MntNodeAlertness):
     bl_idname = 'MntNodeQuickNote'
@@ -355,6 +469,7 @@ class NodeQuickNote(MntNodeAlertness):
     bl_width_min = 64
     bl_width_default = 256
     note: bpy.props.StringProperty(name="Note body", default="")
+    nclass = 32
     def DrawNode(self, context, layout, prefs):
         layout.prop(self,'note', text="")
         self.ProcAlertState(self.note)
@@ -408,6 +523,7 @@ class NodeNotepad(MntNodeAlertness):
     bl_width_default = 384
     linesCount: bpy.props.IntProperty(name="Count of lines", min=0, max=256, soft_max=32, default=5, update=NnUpdateNodeNnNotepadLines)
     memo: bpy.props.CollectionProperty(type=NnNotepadLine)
+    nclass = 32
     def InitNode(self, context):
         self.linesCount = 5 #Заметка: NnUpdateNodeNnNotepadLines().
     def DrawInAddon(self, context, colLy, prefs):
@@ -443,7 +559,7 @@ class NodeNotepad(MntNodeAlertness):
                 rowNum = rowLine.row(align=True)
                 rowNum.alignment = 'CENTER'
                 rowNum.active = decorNum>1
-                rowNum.label(text=str(cyc).zfill(len)+":")
+                rowNum.label(text=str(cyc+1).zfill(len)+":")
             rowBody = (rowLine.row() if decorBody else rowLine).row(align=True)
             rowBody.prop(line,'body', text="")
             if canAlert:
@@ -643,6 +759,7 @@ class NodeItemPropsTable(MntNodeAlertness):
     precomp: bpy.props.StringProperty(name="Precomp", default="")
     filters: bpy.props.CollectionProperty(type=NipmTablePropFilter)
     isShowFilterErrors: bpy.props.BoolProperty(name="Show rows with errors", default=True)
+    nclass = 9
     def InitNode(self, context):
         self.path = "bpy.data.objects"
         self.props = "name, data; data.use_fake_user"
@@ -699,6 +816,7 @@ class NodePropsNameViewer(MntNodeRoot):
     path:   bpy.props.StringProperty(name="Path",   default="")
     filter: bpy.props.StringProperty(name="Filter", default="")
     isShowIdentifier: bpy.props.BoolProperty(name="Show identifier", default=True)
+    nclass = 9
     def InitNode(self, context):
         self.path = "bpy.context.space_data.edit_tree.nodes.active"
         self.filter = "re.search(\"\", val.identifier)"
@@ -821,6 +939,7 @@ def AddBlInfoFromOrder(where, mod, blinfo, txt_order="avdlwf"): #avdlwf крас
         if not isFile:
             rowMain.label(text=txt)
         else:
+            rowMain.alignment = 'LEFT'
             rowMain.operator(NamOp.bl_idname, text=txt, emboss=False).txt = txt
     for ch in txt_order:
         target = [di for di in blinfo if di[0]==ch]
@@ -849,6 +968,7 @@ class NodeAddonsManager(MntNodeAlertness): #Для этого аддона ка�
     filter: bpy.props.StringProperty(name="filter", default="")
     enum_filterByCat: bpy.props.EnumProperty(name="Filter by category", items=NamItemsAddonFilter)
     isShowDisabledAddons: bpy.props.BoolProperty(name="Disabled addons", default=False)
+    nclass = 40
     def InitNode(self, context):
         self.filter = ".*"
         dict_usedExt = {ext.module for ext in bpy.context.preferences.addons}
@@ -1123,8 +1243,8 @@ class NodeAddonsManager(MntNodeAlertness): #Для этого аддона ка�
 
 list_classes += [NamAddons, NamOp]
 list_classes += [NodeAddonsManager]
-AddToSacat([ (1,NodeAddonsManager) ], "Special", AtHomePoll)
-AddToSacat([ (999,NodeAddonsManager) ], "Manager", PublicPoll)
+AddToSacat([ (99,NodeAddonsManager) ], "Managers", AtHomePoll)
+#AddToSacat([ (999,NodeAddonsManager) ], "Manager", PublicPoll)
 
 class AddonPrefs(AddonPrefs):
     disclMnNam: bpy.props.BoolProperty(name="DisclMnNam", default=False)
@@ -1141,7 +1261,7 @@ list_clsToDrawAdn.append(NodeAddonsManager)
 
 class NttfOp(bpy.types.Operator):
     bl_idname = 'uu.node_op_nttf'
-    bl_label = "NamOp"
+    bl_label = "NttfOp"
     bl_options = {'UNDO'}
     who: bpy.props.StringProperty()
     opt: bpy.props.StringProperty()
@@ -1199,17 +1319,17 @@ class TtfFinder:
         self.list_search = []
         self.set_unique = set()
 
-dict_nttfSearchCache = {}
+dict_nttfFinderCache = {}
 
 import time
 
 def NttfDoNdSearch(ndTar):
-    dict_nttfSearchCache[ndTar].list_search.clear()
-    dict_nttfSearchCache[ndTar].set_unique.clear()
+    list_search = dict_nttfFinderCache[ndTar].list_search
+    set_unique = dict_nttfFinderCache[ndTar].set_unique
+    list_search.clear()
+    set_unique.clear()
     scoTotAll = 0
     if ndTar.regex:
-        list_search = dict_nttfSearchCache[ndTar].list_search
-        set_unique = dict_nttfSearchCache[ndTar].set_unique
         try:
             patr = re.compile(ndTar.regex)
         except:
@@ -1229,8 +1349,8 @@ def NttfDoNdSearch(ndTar):
                     set_unique.add(rex)
             list_search.append(ttfSr)
             scoTotAll += length(tb.lines)
-    dict_nttfSearchCache[ndTar].scoTotAll = scoTotAll
-    dict_nttfSearchCache[ndTar].lastTimeRaw = time.time()
+    dict_nttfFinderCache[ndTar].scoTotAll = scoTotAll
+    dict_nttfFinderCache[ndTar].lastTimeRaw = time.time()
 
 def NttfUpdateRegex(self, context):
     NttfDoNdSearch(self)
@@ -1248,7 +1368,8 @@ class NodeTextblockTextFinder(MntNodeAlertness):
     isDisplayAsProp: bpy.props.BoolProperty(name="Display as prop", default=True)
     isDisplayUnique: bpy.props.IntProperty(name="Display unique", default=0, min=0, max=2)
     linesScaleY: bpy.props.FloatProperty(name="Lines scale Y", min=.4, max=1.5, default=.85)
-    decorResults: bpy.props.IntProperty(name="Decor Results", default=11, min=0, max=15)
+    decorResults: bpy.props.IntProperty(name="Decor Results", default=11, min=0, max=31)
+    nclass = 32
     def draw_label(self):
         #А так же поместить и само выражение.
         return "Textblock LineText Finder  /"+self.regex+"/" #"–"
@@ -1268,8 +1389,8 @@ class NodeTextblockTextFinder(MntNodeAlertness):
         colLy.prop(self,'decorResults')
         self.DrawInAddon(context, colLy, prefs)
     def DrawNode(self, context, colLy, prefs):
-        dict_nttfSearchCache.setdefault(self, TtfFinder())
-        finder = dict_nttfSearchCache[self]
+        dict_nttfFinderCache.setdefault(self, TtfFinder())
+        finder = dict_nttfFinderCache[self]
         if time.time()-finder.lastTimeRaw>1.0:
             NttfDoNdSearch(self)
         isDisplayAsProp = self.isDisplayAsProp
@@ -1348,7 +1469,7 @@ class NodeTextblockTextFinder(MntNodeAlertness):
                             op.who = repr(self)
                             op.opt = 'Warp'
                             op.dest = repr((fdsr.tbRef.name, li.inx, li.rex.span()))
-                            rowOp.active = False
+                            rowOp.active = decorResults//16%2
                         rowResult.active = decorResults//2%2
                         scoDisp += 1
             if nttfDecorTable%2:
@@ -1360,7 +1481,7 @@ class NodeTextblockTextFinder(MntNodeAlertness):
 list_classes += [NttfOp]
 list_classes += [NodeTextblockTextFinder]
 AddToSacat([ (2,NodeTextblockTextFinder) ], "Text", AtHomePoll)
-AddToSacat([ (999,NodeTextblockTextFinder) ], "Manager", PublicPoll)
+#AddToSacat([ (999,NodeTextblockTextFinder) ], "Manager", PublicPoll)
 
 class AddonPrefs(AddonPrefs):
     disclMnNttf: bpy.props.BoolProperty(name="DisclMnNttf", default=False)
@@ -1380,6 +1501,7 @@ class NodeUvManager(MntNodeAlertness):
     filterUv: bpy.props.StringProperty(name="filterUv", default="")
     isHierarchy: bpy.props.BoolProperty(name="Display as hierarchy", default=False)
     displayActiveRender: bpy.props.IntProperty(name="Display active render", default=0, min=0, max=2)
+    nclass = 3
     def InitNode(self, context):
         self.filterMh = ".*"
         self.filterUv = ".*"
@@ -1447,33 +1569,106 @@ class NodeUvManager(MntNodeAlertness):
 
 list_classes += [NodeUvManager]
 AddToSacat([ (0,NodeUvManager) ], "Managers", AtHomePoll)
-AddToSacat([ (999,NodeUvManager) ], "Manager", PublicPoll)
+#AddToSacat([ (999,NodeUvManager) ], "Manager", PublicPoll)
+
+import random
 
 def NcnUpdateCol(self, context):
-    self.use_custom_color = True
-    col = self.col
-    self.color = (col[0]**pw22, col[1]**pw22, col[2]**pw22)
+    can = not self.decorProp
+    self.use_custom_color = can
+    if can:
+        col = self.col
+        self.color = (col[0]**pw22, col[1]**pw22, col[2]**pw22)
 class NodeColorNote(MntNodeRoot):
     bl_idname = 'MntNodeColorNote'
     bl_label = "Color note"
     bl_width_max = 256
     bl_width_min = 64
     bl_width_default = 140
-    col: bpy.props.FloatVectorProperty(name="Color", size=3, soft_min=0, soft_max=1, subtype='COLOR')#, update=NcnUpdateCol)
-    decor: bpy.props.IntProperty(name="Decor", default=2, min=2, max=6)
+    col: bpy.props.FloatVectorProperty(name="Color", size=3, soft_min=0, soft_max=1, subtype='COLOR', update=NcnUpdateCol)
+    decorProp: bpy.props.BoolProperty(name="Classic prop", default=False, update=NcnUpdateCol)
+    decorHeight: bpy.props.IntProperty(name="Decor Height", default=3, min=2, max=6)
+    nclass = 2 #Первый несуществующий, потому что '1' имеет обработку активного, или я хрен знает.
     def InitNode(self, context):
-        #self.col = (random.random(), random.random(), random.random())
-        self.col = (1,1,1)
+        self.col = (random.random(), random.random(), random.random()) #(0.628377, 0.849800, 0.916233)
     def DrawExtNode(self, context, colLy, prefs):
-        colLy.prop(self,'decor')
+        colLy.row().prop(self,'col')
+        colLy.prop(self,'decorProp')
+        colLy.prop(self,'decorHeight')
     def DrawNode(self, context, colLy, prefs):
         row = colLy.row()
-        row.prop(self,'col', text="")
-        row.scale_y = 0.5*self.decor
+        row.prop(self,'col', text="", emboss=self.decorProp) #emboss==False для color prop -- это потрясающе!!
+        #row.prop(self,'col', text="") if self.decorProp else row.label() #Некликабельная версия.
+        row.scale_y = 0.5*self.decorHeight
 
 list_classes += [NodeColorNote]
-AddToSacat([ (0,NodeColorNote) ], "Special", AtHomePoll)
+AddToSacat([ (0,NodeColorNote) ], "Color", AtHomePoll)
 AddToSacat([ (999,NodeColorNote) ], "Manager", PublicPoll)
+
+dict_listSoldSkoLinks = {}
+
+def RectRerouteWalker(skSour, skCur):
+    if not skCur.is_output:#and sk.node.type=='RETOUTE'
+        skCur = skCur.node.outputs[0]
+    for lk in dict_listSoldSkoLinks.get(skCur, []):
+        nd = lk.to_node
+        if nd.type=='REROUTE':
+            RectRerouteWalker(skSour, lk.to_socket)
+        else:
+            lk.to_socket.default_value = (skSour.default_value[0], skSour.default_value[1], skSour.default_value[2], 1.0)
+def NcnUpdatePublish(self, context):
+    dict_listSoldSkoLinks.clear()
+    for lk in self.id_data.links:
+        dict_listSoldSkoLinks.setdefault(lk.from_socket, [])
+        if (lk.is_valid)and(not(lk.is_muted or lk.is_hidden)):
+            dict_listSoldSkoLinks[lk.from_socket].append(lk)
+    for sk in self.node.outputs:
+        if (sk.enabled)and(not sk.hide):
+            RectRerouteWalker(sk, sk)
+
+class NcnColSocket(bpy.types.NodeSocket):
+    bl_idname = 'NcnColSocket'
+    bl_label = "Color"
+    default_value: bpy.props.FloatVectorProperty(name="Color", size=3, min=0, max=1, subtype='COLOR', update=NcnUpdatePublish)
+    def draw(self, context, layout, node, text):
+        row = layout.row()
+        row.prop(self,"default_value", text="")
+        row.scale_y = 0.5*self.node.decorHeight
+    def draw_color(self, context, node):
+        return (self.default_value[0]**pw22, self.default_value[1]**pw22, self.default_value[2]**pw22, 1) #todo мб оптимизировать, не комельфо с **.
+#    @classmethod
+#    def draw_color_simple(cls):
+#        return (0.8934110431855, 0.8934110431855, 0.43571415700134714, 1.0)
+
+def NcnUpdateColCount(self, context):
+    len = length(self.outputs)
+    for cyc in range(len, self.colCount):
+        self.outputs.new(NcnColSocket.bl_idname, "Color")
+        self.outputs[-1].default_value = (random.random(), random.random(), random.random())
+    for cyc in reversed(range(self.colCount, len)):
+        self.outputs.remove(self.outputs[cyc])
+class NodeColorNotepad(MntNodeRoot):
+    bl_idname = 'MntNodeColorNotepad'
+    bl_label = "Color Notepad"
+    bl_width_max = 256
+    bl_width_min = 64
+    bl_width_default = 140
+    colCount: bpy.props.IntProperty(name="Count", default=1, min=0, max=32, soft_min=1, soft_max=6, update=NcnUpdateColCount)
+    decorHeight: bpy.props.IntProperty(name="Decor Height", default=2, min=2, max=4)
+    nclass = 2
+    def InitNode(self, context):
+        NcnUpdateColCount(self, context)
+    def update(self):
+        if self.outputs:
+            NcnUpdatePublish(self.outputs[0], None)
+    def DrawExtNode(self, context, colLy, prefs):
+        colLy.prop(self,'decorHeight')
+        colLy.prop(self,'colCount')
+
+list_classes += [NcnColSocket]
+list_classes += [NodeColorNotepad]
+AddToSacat([ (1,NodeColorNotepad) ], "Color", AtHomePoll)
+AddToSacat([ (999,NodeColorNotepad) ], "Manager", PublicPoll)
 
 class NodeQuickLayout(MntNodeRoot):
     bl_idname = 'MntNodeQuickLayout'
@@ -1482,6 +1677,8 @@ class NodeQuickLayout(MntNodeRoot):
     bl_width_min = 64
     bl_width_default = 280
     txtExec: bpy.props.StringProperty(name="Exec")
+    nclass = 2
+    #todo выбор текстового блока
     def InitNode(self, context):
         self.txtExec = "ly.prop(context.scene.render,'engine')"
     def DrawNode(self, context, colLy, prefs):
@@ -1492,18 +1689,19 @@ class NodeQuickLayout(MntNodeRoot):
             colLy.label(text=str(ex), icon='ERROR')
 
 list_classes += [NodeQuickLayout]
-AddToSacat([ (2,NodeQuickLayout) ], "RNA", AtHomePoll)
+AddToSacat([ (0,NodeQuickLayout) ], "Script", AtHomePoll)
 AddToSacat([ (999,NodeQuickLayout) ], "Manager", PublicPoll)
 
 #todo0 придумать, как сделать свои "custom properties", только для нодов. "Динамические свойства".
 
 list_classesSolemn = []
 
-class MntNodeSolemn(MntNodeAlertness): #Это самое приятное, что я когда либо кодил.
+class MntNodeSolemn(MntNodeAlertness): #Они самое приятное, что я когда либо кодил.
     bl_width_max = 1024
     bl_width_min = 64
     bl_width_default = 253+math.pi
     solemnName: bpy.props.StringProperty(name="Solemn Name", default="Ceremonial!")
+    nclass = 8
     def AddSolemnProp(self, where, prop):
         where.prop(self, prop, text=self.solemnName)
     def StencilDrawSelfSolemn(self, where):
@@ -1523,16 +1721,21 @@ class MntNodeSolemn(MntNodeAlertness): #Это самое приятное, чт
         row.prop(self,'solemnName', text="")
         if hasattr(self,'alerting'):
             colLy.prop(self,'alerting')
+        if hasattr(self,'decor'):
+            colLy.prop(self,'decor')
 
 class NodeSolemnBool(MntNodeSolemn):
     bl_idname = 'MntNodeSolemnBool'
     bl_label = "Solemn Bool"
     bool: bpy.props.BoolProperty(name="Bool", default=False)
     alerting: bpy.props.BoolProperty(name="Alert trigger", default=False)
+    decor: bpy.props.IntProperty(name="Decor", default=1, min=0, max=7, soft_min=1, soft_max=3)
     def InitNode(self, context):
         self.bool = True
     def DrawNode(self, context, colLy, prefs):
-        self.AddSolemnProp(colLy, 'bool')
+        decor = self.decor
+        solemnName = self.solemnName
+        colLy.prop(self,'bool', text=" " if (decor//2%2)and(not solemnName)and(not decor//4) else solemnName, icon=('CHECKBOX_HLT' if self.bool else 'CHECKBOX_DEHLT') if decor//2%2 else 'NONE', emboss=decor%2)
         self.ProcAlertState(self.bool^self.alerting)
 list_classesSolemn += [NodeSolemnBool]
 
@@ -1570,19 +1773,27 @@ list_classesSolemn += [NodeSolemnFloat]
 class NodeSolemnColor(MntNodeSolemn):
     bl_idname = 'MntNodeSolemnColor'
     bl_label = "Solemn Color"
-    colour: bpy.props.FloatVectorProperty(name="Color", size=3, min=0, max=1, subtype='COLOR')
-    decor: bpy.props.IntProperty(name="Decor", default=0, min=0, max=1)
+    colour: bpy.props.FloatVectorProperty(name="Color", size=3, min=0, max=1, subtype='COLOR') #Как ловко выкрутился от конфликта api, но с сохранением эстетики.
+    decor: bpy.props.IntProperty(name="Decor", default=0, min=0, max=2)
     def InitNode(self, context):
         self.colour = (0.166974, 0.293647, 0.587855) #или `self.alertColor`; который после цепного init'а.
-        self.decor = 1
-    def DrawExtNode(self, context, colLy, prefs):
-        colLy.prop(self,'decor')
+        self.decor = 2
     def DrawNode(self, context, colLy, prefs):
-        decor = self.decor
-        if not decor:
-            colLy.prop(self,'colour', text=self.solemnName)
+        if not self.solemnName:
+            colLy.prop(self,'colour', text="")
         else:
-            PlacePropColor(colLy, self,'colour', txt=self.solemnName)
+            decor = self.decor
+            if not decor:
+                colLy.prop(self,'colour', text=self.solemnName)
+            elif decor==1:
+                colLy.row(align=True).prop(self,'colour', text=self.solemnName)
+            else:
+                rowCol = colLy.row()
+                rowLabel = rowCol.row()
+                rowLabel.alignment = 'LEFT'
+                rowLabel.label(text=self.solemnName)
+                rowCol.alignment = 'EXPAND'
+                rowCol.prop(self, 'colour', text="")
         self.ProcAlertState(any(self.colour))
 list_classesSolemn += [NodeSolemnColor]
 
@@ -1590,6 +1801,106 @@ list_classes += list_classesSolemn
 for cyc, li in enumerate(list_classesSolemn):
     AddToSacat([(cyc,li)], "Solemn", AtHomePoll)
     AddToSacat([(999,li)], "Manager", PublicPoll)
+
+dict_editorIcos = {'ShaderNodeTree':    'NODE_MATERIAL',
+                   'CompositorNodeTree':'NODE_COMPOSITING',
+                   'GeometryNodeTree':  'GEOMETRY_NODES',
+                   'TextureNodeTree':   'NODE_TEXTURE', 
+                   'NodeTreeUndefined': 'QUESTION' }
+
+class NgdfSearch:
+    def __init__(self):
+        self.countDupli = 0
+        self.countNodes = 0
+        self.countLinks = 0
+        self.list_ng = []
+
+class NgdfFinder:
+    def __init__(self):
+        self.countFacts = 0
+        self.list_all = []
+
+dict_ngdfFinder = {}
+
+class NgdfOp(bpy.types.Operator):
+    bl_idname = 'uu.node_op_ngdf'
+    bl_label = "NamOp"
+    who: bpy.props.StringProperty()
+    opt: bpy.props.StringProperty()
+    def execute(self, context):
+        if self.who:
+            ndRepr = eval(self.who)
+            match self.opt:
+                case 'FindRequest':
+                    list_result = dict_ngdfFinder[ndRepr]
+                    list_result.clear()
+                    dict_ndlk = {}
+                    for ng in bpy.data.node_groups:
+                        #if ng.bl_idname==ManagersTree.bl_idname: continue
+                        key = (length(ng.nodes), length(ng.links))
+                        dict_ndlk.setdefault(key, [])
+                        dict_ndlk[key].append(ng)
+                    scoFound = 0
+                    for di in dict_ndlk:
+                        list_ng = dict_ndlk[di]
+                        if length(list_ng)>1:
+                            dict_matter = {}
+                            for li in list_ng:
+                                key = tuple(sorted([nd.bl_idname for nd in li.nodes]))
+                                if not dict_matter.get(key, None):
+                                    dict_matter[key] = []
+                                dict_matter[key].append(li)
+                            for di in dict_matter:
+                                list_matter = dict_matter[di]
+                                if length(list_matter)>1:
+                                    list_result += list_matter
+        return {'FINISHED'}
+
+def NgdfAddItem(where, ng):
+    def AddOp(where, enabled, ico, pressed, opt, who, txt=""):
+        row = where.row(align=True)
+        row.enabled = enabled
+        op = row.operator(NgdfOp.bl_idname, text=txt, icon=ico, depress=pressed)
+        return op
+    row0 = where.row(align=True)
+    if ng.users.numerator==0:
+        row0.label(text="", icon='DRIVER_TRANSFORM')
+    row0.prop(ng,'name', text="", icon=dict_editorIcos.get(ng.bl_idname,'NODETREE'))
+    rowa = row0.row(align=True)
+    rowa.prop(ng,'use_fake_user', text="")
+    rowa.active = False
+    AddOp(row0, True, 'TRASH', False, 'Del', ng.name)
+class NodeNgDuplicateFinder(MntNodeAlertness):
+    bl_idname = 'MntNodeNgDuplicateFinder'
+    bl_label = "Nodegroups duplicate finder"
+    bl_icon = 'DUPLICATE' #Как удобно.
+    bl_width_max = 2048
+    bl_width_min = 256
+    bl_width_default = 512
+    def DrawNode(self, context, colLy, prefs):
+        dict_ngdfFinder.setdefault(self, NgdfFinder())
+        colList = colLy.column(align=True)
+        rowTotal = colList.row(align=True)
+        AddThinSep(colList, 0.5)
+        for li in dict_ngdfFinder[ndRepr].list_all:
+            box = colList.row().box()
+            colItem = box.column(align=True)
+            row = colItem.row(align=True)
+            row.label( text="+"+str(length(list_mat)-1)+" found: "+str(length(list_ng[0].nodes))+" nodes "+str(length(list_ng[0].links))+" links " )
+            row.active = False
+            for li in list_mat:
+                NgdfAddItem(colItem, li)
+        count = dict_ngdfFinder[ndRepr].countFacts
+        if count:
+            StencilTotalRow(prefs, rowTotal, ('DUPLICATE', count), decor=1)
+        else:
+            rowTotal.label(text="Clear!", icon='INFO')
+        self.ProcAlertState(count)
+
+#list_classes += [NgdfOp]
+#list_classes += [NodeNgDuplicateFinder]
+#AddToSacat([ (2,NodeNgDuplicateFinder) ], "Special", AtHomePoll)
+#AddToSacat([ (999,NodeNgDuplicateFinder) ], "Manager", PublicPoll)
 
 def ToggleRegMnnPanel(self, context):
     if self.aMnnPanel:
@@ -1619,8 +1930,6 @@ class AddonPrefs(AddonPrefs):
             cls.DrawInAddon(cls, context, colLy, self)
 
 list_classes += [AddonPrefs]
-
-#todo4 custom props manager full!
 
 def register():
     for li in list_classes:
