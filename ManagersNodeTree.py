@@ -12,8 +12,6 @@ import bpy, re, ctypes
 import nodeitems_utils
 import math
 
-#todo0 а что если "покрасить" заголовки?
-
 list_classes = []
 list_clsToDrawAdn = []
 
@@ -212,8 +210,8 @@ class BNodeType(StructBase):
     maxheight:      ctypes.c_float
     maxheight:      ctypes.c_float
     nclass:         ctypes.c_int16 #Эй, вы припёрлись сюда, чтобы взять цветные заголовки себе? Неет))00)0 Так дело не пойдет.
-                                             #Попробуйте отреверсинженерить самостоятельно. Или запалите одной звездой на гитхабе.
-                                             #И вообще поищите кого-нибудь другого энтузиастского кодера, который додумался до подобного раньше меня.
+                                             #Попробуйте отреверсинженерить самостоятельно. Или заплатите одной звездой на гитхабе.
+                                             #И вообще поищите какого-нибудь другого энтузиастского кодера, который додумался до подобного раньше меня.
 class BNode(StructBase):
     next:       ctypes.c_void_p
     prev:       ctypes.c_void_p
@@ -250,16 +248,15 @@ StructBase.InitStructs()
 #define NODE_CLASS_ATTRIBUTE 42
 #define NODE_CLASS_LAYOUT 100
 
-list_classesDev = []
+#list_classesDev = []
 
-for num in [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 32, 33, 40, 41, 42, 100]:
-    exec(f"class NodeTestDev{num}(MntNodeRoot):"+"\n"+f" bl_idname = 'NodeTestDev{num}'"+"\n"+f" bl_label = 'NodeTestDev{num}'"+"\n"+f" nclass = {num}")
-    print("ZXRQN █", f"list_classesDev = [NodeTestDev{num}]");
-    exec(f"list_classesDev.append(NodeTestDev{num})")
+#for num in [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 32, 33, 40, 41, 42, 100]:
+#    exec(f"class NodeTestDev{num}(MntNodeRoot):"+"\n"+f" bl_idname = 'NodeTestDev{num}'"+"\n"+f" bl_label = 'NodeTestDev{num}'"+"\n"+f" nclass = {num}")
+#    exec(f"list_classesDev.append(NodeTestDev{num})")
 
-list_classes += list_classesDev
-for li in list_classesDev:
-    AddToSacat([ (0,li) ], "Dev", AtHomePoll)
+#list_classes += list_classesDev
+#for li in list_classesDev:
+#    AddToSacat([ (0,li) ], "Dev", AtHomePoll)
 
 #end test dev#
 
