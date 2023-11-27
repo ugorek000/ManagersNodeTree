@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,2,1), 'blender':(4,0,1), #2023.11.28
+           'version':(2,2,2), 'blender':(4,0,1), #2023.11.28
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -437,7 +437,7 @@ class MtlOp(bpy.types.Operator):
                 context.space_data.node_tree = bpy.data.node_groups[self.who]
                 if event.shift:
                     bpy.ops.node.view_all('INVOKE_DEFAULT')
-            case 'ToCenterFromActive':
+            case 'AllCenterFromActive':
                 tree = context.space_data.edit_tree
                 if tree.nodes:
                     ndTar = tree.nodes.active
@@ -483,7 +483,7 @@ class PanelManagerTreeList(bpy.types.Panel):
                 rowProp = row.row(align=True)
                 rowProp.prop(ng,'use_fake_user', text="")
                 rowProp.active = False
-        colLy.operator(MtlOp.bl_idname, text="Offset nodes to world origin").opt = 'ToCenterFromActive'
+        colLy.operator(MtlOp.bl_idname, text="Offset nodes to world origin").opt = 'AllCenterFromActive'
 
 list_classes += [PanelManagerNodesNode, MtlOp, PanelManagerTreeList]
 
@@ -1683,9 +1683,14 @@ def RectRerouteWalker(skSour, skCur):
     for lk in dict_listSoldSkoLinks.get(skCur, []):
         nd = lk.to_node
         if nd.type=='REROUTE':
+            lk.to_socket.cache = skSour.cache #todo отдекорить это
+            lk.to_socket.node.outputs[0].cache = skSour.cache
             RectRerouteWalker(skSour, lk.to_socket)
-        else:
-            lk.to_socket.default_value = skSour.cache
+        else:#if lk.to_socket.bl_rna.properties['default_value'].is_array:
+            try:
+                lk.to_socket.default_value = (skSour.default_value[0], skSour.default_value[1], skSour.default_value[2], 1)
+            except:
+                pass #"Ну и хрен с тобой".
 def NcnUpdatePublish(self, context): #А я-то надеялся, что Блендер может обрабатывать деревья с кастомными сокетами, если их bl_idname совпадают, или что-то похоже. Оказалось, что нет. Приходится засовывать вручную.
     self.cache = (self.default_value[0]**pw22, self.default_value[1]**pw22, self.default_value[2]**pw22, 1)
     dict_listSoldSkoLinks.clear()
@@ -1707,6 +1712,9 @@ class NcnColSocket(bpy.types.NodeSocket):
         row.prop(self,"default_value", text="")
         row.scale_y = 0.5*self.node.decorHeight
     def draw_color(self, context, node):
+#        a = hasattr(self,'cache')
+#        a = self.cache[0]
+#        return (a,a,a,a)
         return self.cache
     @classmethod
     def draw_color_simple(cls):
