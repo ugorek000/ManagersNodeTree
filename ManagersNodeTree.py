@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,2,4), 'blender':(4,1,0), #2023.12.01
+           'version':(2,2,5), 'blender':(4,0,1), #2023.12.01
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -114,6 +114,10 @@ class AtHomePoll(nodeitems_utils.NodeCategory):
     @classmethod
     def poll(cls, context):
         return context.space_data.tree_type==ManagersTree.bl_idname
+class PublicPoll(nodeitems_utils.NodeCategory):
+    @classmethod
+    def poll(cls, context):
+        return context.space_data.tree_type!=ManagersTree.bl_idname
 
 dict_tupleShiftAList = {}
 
@@ -146,6 +150,14 @@ def DoPublish(tgl):
     if bl_ver>(3,9,9):
         for txt in {"shader", "geometry", "compositor", "texture"}:
             eval(f"bpy.types.NODE_MT_{txt}_node_add_all.{'append' if tgl else 'remove'}")(DrawPublicMnt)
+    else:
+        txt = SubMenuPublicManagers.bl_label
+        list_nodeCategories = [PublicPoll(txt, txt, items=[nodeitems_utils.NodeItem(li[1].bl_idname) for li in sorted(list_tupleСlsToPublic, key=lambda a:a[0])])]
+        try:
+            nodeitems_utils.register_node_categories('MANAGER_NODES_pub', list_nodeCategories)
+        except:
+            nodeitems_utils.unregister_node_categories('MANAGER_NODES_pub')
+            nodeitems_utils.register_node_categories('MANAGER_NODES_pub', list_nodeCategories)
 list_classes += [SubMenuPublicManagers]
 
 mntSaCatName = 'MANAGER_NODES'
@@ -546,7 +558,6 @@ class NodeDummy(bpy.types.Node):
 
 list_classes += [NodeManagersNodeTree, NodeDummy]
 AddToSacat([ (0,NodeManagersNodeTree), (1,NodeDummy) ], "Self", AtHomePoll)
-
 
 def NipmAddTableOfProps(self, prefs, where, data, list_props, colSpec=None, canSep=True): #Некоторый бардак; было бы круто перелизать всё.
     def Eix(ix):
