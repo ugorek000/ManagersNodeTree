@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,2,4), 'blender':(4,0,1), #2023.12.01
+           'version':(2,2,4), 'blender':(4,1,0), #2023.12.01
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -11,6 +11,8 @@ from builtins import len as length
 import bpy, re, ctypes
 import nodeitems_utils
 import math
+
+bl_ver = bpy.app.version
 
 list_classes = []
 list_clsToDrawAdn = []
@@ -52,7 +54,7 @@ def MnUpdateAllNclassFromTree():
     bpy.data.node_groups.remove(tree)
 
 pw22 = 1/2.2
-def MnTimerSetAlertColor(nd, context):
+def MnTimerUpdateSetAlertColor(nd, context):
     dict_ndLastAlert.setdefault(nd, False)
     nd.use_custom_color = (dict_ndLastAlert[nd])and(any(nd.alertColor))
     col = nd.alertColor
@@ -86,7 +88,7 @@ class MntNodeRoot(MntPreChainBase):
     def DrawPreChain(self, context, colLy):
         AddThinSep(colLy, .1) #!.
 class MntNodeAlertness(MntNodeRoot, MntPreChainBase):
-    alertColor: bpy.props.FloatVectorProperty(name="Alert color", default=(0.0, 0.0, 0.0), min=0, max=1, size=3, subtype='COLOR', update=MnTimerSetAlertColor)
+    alertColor: bpy.props.FloatVectorProperty(name="Alert color", default=(0.0, 0.0, 0.0), min=0, max=1, size=3, subtype='COLOR', update=MnTimerUpdateSetAlertColor)
     def DrawExtPreChain(self, context, colLy):
         MntNodeRoot.DrawExtPreChain(self, context, colLy)
         AddNiceColorProp(colLy, self,'alertColor')
@@ -97,11 +99,11 @@ class MntNodeAlertness(MntNodeRoot, MntPreChainBase):
         alertState = not not dataState
         if alertState!=dict_ndLastAlert[self]:
             dict_ndLastAlert[self] = alertState
-            bpy.app.timers.register(functools.partial(MnTimerSetAlertColor, self, None))
+            bpy.app.timers.register(functools.partial(MnTimerUpdateSetAlertColor, self, None))
 #        if (any(self.alertColor))and(any(self.color)!=dict_ndLastAlert[self]): #Иногда может заесть (пока зачемено только в процессе разработки), так что пусть будет для подстраховки.
             #Осторожно с бесконечным обновлением.
 #            dict_ndLastAlert[self] = alertState
-#            bpy.app.timers.register(functools.partial(MnTimerSetAlertColor, self, None))
+#            bpy.app.timers.register(functools.partial(MnTimerUpdateSetAlertColor, self, None))
 class MntNodeWithOnlyMatter(MntNodeAlertness):
     isOnlyMatter: bpy.props.BoolProperty(name="Matter display only", default=False)
     def DrawExtPreChain(self, context, colLy):
@@ -141,8 +143,9 @@ class SubMenuPublicManagers(bpy.types.Menu):
 def DrawPublicMnt(self, context):
     self.layout.menu(SubMenuPublicManagers.bl_idname)
 def DoPublish(tgl):
-    for txt in {"shader", "geometry", "compositor", "texture"}:
-        eval(f"bpy.types.NODE_MT_{txt}_node_add_all.{'append' if tgl else 'remove'}")(DrawPublicMnt)
+    if bl_ver>(3,9,9):
+        for txt in {"shader", "geometry", "compositor", "texture"}:
+            eval(f"bpy.types.NODE_MT_{txt}_node_add_all.{'append' if tgl else 'remove'}")(DrawPublicMnt)
 list_classes += [SubMenuPublicManagers]
 
 mntSaCatName = 'MANAGER_NODES'
@@ -178,24 +181,24 @@ class StructBase(ctypes.Structure):
             cls.__annotations__.clear()
         StructBase._subclasses.clear()
 
-class BNodeType(StructBase):
+class BNodeType(StructBase): #source\blender\blenkernel\BKE_node.h
     idname:         ctypes.c_char*64
     type:           ctypes.c_int
     ui_name:        ctypes.c_char*64
     ui_description: ctypes.c_char*256
     ui_icon:        ctypes.c_int
-    char:           ctypes.c_void_p
+    if bl_ver>(3,9,9):
+        char:           ctypes.c_void_p
     width:          ctypes.c_float
     minwidth:       ctypes.c_float
     maxwidth:       ctypes.c_float
     height:         ctypes.c_float
     minheight:      ctypes.c_float
     maxheight:      ctypes.c_float
-    maxheight:      ctypes.c_float
     nclass:         ctypes.c_int16 #Эй, вы припёрлись сюда, чтобы взять цветные заголовки себе? Неет))00)0
                                              #Лучше попробуйте отреверсинженерить самостоятельно. Или задонатьте одной звездой на гитхабе.
                                              #И вообще, поищите какого-нибудь другого энтузиастского кодера, который реализовал это лучше меня.
-class BNode(StructBase):
+class BNode(StructBase): #source\blender\makesdna\DNA_node_types.h:
     next:       ctypes.c_void_p
     prev:       ctypes.c_void_p
     inputs:     ctypes.c_void_p*2
@@ -261,6 +264,7 @@ class NodeNclassTagViewer(MntNodeRoot):
 
 list_classes += [NodeNclassTagViewer]
 AddToSacat([ (2,NodeNclassTagViewer) ], "Self", AtHomePoll)
+list_tupleСlsToPublic += [(7, NodeNclassTagViewer)]
 
 def AddThinSep(where, scaleY=0.25, scaleX=1.0):
     row = where.row(align=True)
@@ -543,6 +547,7 @@ class NodeDummy(bpy.types.Node):
 list_classes += [NodeManagersNodeTree, NodeDummy]
 AddToSacat([ (0,NodeManagersNodeTree), (1,NodeDummy) ], "Self", AtHomePoll)
 
+
 def NipmAddTableOfProps(self, prefs, where, data, list_props, colSpec=None, canSep=True): #Некоторый бардак; было бы круто перелизать всё.
     def Eix(ix):
         if niptIsPlaceDebug:
@@ -759,7 +764,7 @@ class NodeItemPropsTable(MntNodeWithOnlyMatter):
 list_classes += [NipmTablePropFilter]
 list_classes += [NodeItemPropsTable]
 AddToSacat([ (0,NodeItemPropsTable) ], "RNA", AtHomePoll)
-list_tupleСlsToPublic += [(5, NodeItemPropsTable)]
+list_tupleСlsToPublic += [(4, NodeItemPropsTable)]
 
 class AddonPrefs(AddonPrefs):
     disclMnNipt: bpy.props.BoolProperty(name="DisclMnNipt", default=False)
@@ -851,7 +856,7 @@ class NodePropsNameViewer(MntNodeRoot):
 
 list_classes += [NodePropsNameViewer]
 AddToSacat([ (1,NodePropsNameViewer) ], "RNA", AtHomePoll)
-list_tupleСlsToPublic += [(4, NodePropsNameViewer)]
+list_tupleСlsToPublic += [(3, NodePropsNameViewer)]
 
 class AddonPrefs(AddonPrefs):
     disclMnNpnv: bpy.props.BoolProperty(name="DisclMnNpnv", default=False)
@@ -1273,9 +1278,10 @@ class NnOp(bpy.types.Operator):
                                 warpTo += 1
                         elif warpTo==-1:
                             warpTo = cyc
-                    for cyc in reversed(range(warpTo, length(memo))):
-                        memo.remove(cyc)
-                    context.area.tag_redraw()
+                    if warpTo!=-1:
+                        for cyc in reversed(range(warpTo, length(memo))):
+                            memo.remove(cyc)
+                        ndRepr.linesCount = length(memo) #context.area.tag_redraw()
         return {'FINISHED'}
 
 def NnUpdateNodeNnNotepadLines(self, context):
@@ -1344,7 +1350,7 @@ class NodeNotepad(MntNodeAlertness):
 list_classes += [NnNotepadLine, NnOp]
 list_classes += [NodeNotepad]
 AddToSacat([ (1,NodeNotepad) ], "Text", AtHomePoll)
-list_tupleСlsToPublic += [(3, NodeNotepad)]
+list_tupleСlsToPublic += [(8, NodeNotepad)]
 
 class AddonPrefs(AddonPrefs):
     disclMnNn: bpy.props.BoolProperty(name="DisclMnNn", default=False)
@@ -1595,7 +1601,7 @@ list_clsToDrawAdn.append(NodeTextblockTextFinder)
 import random
 
 def NcnUpdateCol(self, context):
-    can = not self.decorProp
+    can = self.decorProp
     self.use_custom_color = can
     if can:
         col = self.col
@@ -1607,7 +1613,7 @@ class NodeColorNote(MntNodeRoot):
     bl_width_min = 64
     bl_width_default = 140
     col: bpy.props.FloatVectorProperty(name="Color", size=3, soft_min=0, soft_max=1, subtype='COLOR', update=NcnUpdateCol)
-    decorProp: bpy.props.BoolProperty(name="Classic prop", default=False, update=NcnUpdateCol)
+    decorProp: bpy.props.BoolProperty(name="Decor Prop", default=True, update=NcnUpdateCol)
     decorHeight: bpy.props.IntProperty(name="Decor Height", default=3, min=2, max=6)
     nclass = 2 #Первый несуществующий, потому что '1' имеет обработку активного, или я хрен знает.
     def InitNode(self, context):
@@ -1618,8 +1624,8 @@ class NodeColorNote(MntNodeRoot):
         colLy.prop(self,'decorHeight')
     def DrawNode(self, context, colLy, prefs):
         row = colLy.row()
-        row.prop(self,'col', text="", emboss=self.decorProp) #emboss==False для color prop -- это потрясающе!!
-        #row.prop(self,'col', text="") if self.decorProp else row.label() #Некликабельная версия.
+        row.prop(self,'col', text="", emboss=not self.decorProp) #emboss==False для color prop -- это потрясающе!!
+        #row.prop(self,'col', text="") if not self.decorProp else row.label() #Некликабельная версия.
         row.scale_y = 0.5*self.decorHeight
 
 list_classes += [NodeColorNote]
@@ -1628,30 +1634,32 @@ list_tupleСlsToPublic += [(1, NodeColorNote)]
 
 dict_listSoldSkoLinks = {}
 
-def RectRerouteWalker(skSour, skCur): #"Щепотка RANTO".
+def RectRerouteWalker(skTar, skCur, isEve): #"Щепотка RANTO".
     if not skCur.is_output:#and sk.node.type=='RETOUTE'
         skCur = skCur.node.outputs[0]
     for lk in dict_listSoldSkoLinks.get(skCur, []):
+        lk.is_muted = isEve #Омг, почему в иви не работает?
         nd = lk.to_node
         if nd.type=='REROUTE':
-            lk.to_socket.cache = skSour.cache
-            lk.to_socket.node.outputs[0].cache = skSour.cache
-            RectRerouteWalker(skSour, lk.to_socket)
+            lk.to_socket.cache = skTar.cache
+            lk.to_socket.node.outputs[0].cache = skTar.cache
+            RectRerouteWalker(skTar, lk.to_socket, isEve)
         elif lk.to_socket.bl_rna.properties['default_value'].is_array:
             try:
-                lk.to_socket.default_value = (skSour.default_value[0], skSour.default_value[1], skSour.default_value[2], 1)
+                lk.to_socket.default_value = (skTar.default_value[0], skTar.default_value[1], skTar.default_value[2], 1)
             except:
                 pass #"Ну и хрен с тобой".
 def NcnUpdatePublish(self, context): #А я-то надеялся, что Блендер может обрабатывать деревья с кастомными сокетами, если их bl_idname совпадают, или что-то похоже. Оказалось, что нет. Приходится засовывать вручную.
+    isEve = bpy.context.scene.render.engine=='BLENDER_EEVEE' #В b4.1 без `bpy.` не работает.
     self.cache = (self.default_value[0]**pw22, self.default_value[1]**pw22, self.default_value[2]**pw22, 1)
     dict_listSoldSkoLinks.clear()
     for lk in self.id_data.links:
         dict_listSoldSkoLinks.setdefault(lk.from_socket, [])
-        if (lk.is_valid)and(not(lk.is_muted or lk.is_hidden)):
+        if (lk.is_valid)and(not lk.is_hidden):
             dict_listSoldSkoLinks[lk.from_socket].append(lk)
     for sk in self.node.outputs:
         if (sk.enabled)and(not sk.hide):
-            RectRerouteWalker(sk, sk)
+            RectRerouteWalker(sk, sk, isEve)
 
 class NcnColSocket(bpy.types.NodeSocket):
     bl_idname = 'NcnColSocket'
@@ -1678,8 +1686,8 @@ def NcnUpdateColCount(self, context):
 class NodeColorNotepad(MntNodeRoot):
     bl_idname = 'MntNodeColorNotepad'
     bl_label = "Color Notepad"
-    bl_width_max = 256
-    bl_width_min = 64
+    bl_width_max = 220
+    bl_width_min = 40
     bl_width_default = 140
     colCount: bpy.props.IntProperty(name="Count", default=1, min=0, max=32, soft_min=1, soft_max=6, update=NcnUpdateColCount)
     decorHeight: bpy.props.IntProperty(name="Decor Height", default=2, min=2, max=4)
@@ -1723,7 +1731,8 @@ class NodeQuickLayout(NodeQuickLayoutAndExec):
     bl_idname = 'MntNodeQuickLayout'
     bl_label = "Quick Layout"
     def InitNode(self, context):
-        self.txt_exec = "ly.prop(context.scene.render,'engine')"
+        #self.txt_exec = "ly.prop(context.scene.render,'engine')"
+        self.txt_exec = "ly.row().prop(context.scene.render, 'engine', expand=True)"
     def DrawNode(self, context, colLy, prefs):
         self.AddTbPoi(colLy, self.order)
         EvalAndAddPropExtended(colLy, self,'txt_exec', "", icon='SCRIPT', txt_warning="exec() !"*prefs.allIsPlaceExecAlerts, alertWarn=True, canDraw=not self.isOnlyMatter)
@@ -1780,7 +1789,7 @@ class NodeQuickExec(NodeQuickLayoutAndExec):
 list_classes += [NqeOp]
 list_classes += [NodeQuickLayout, NodeQuickExec]
 AddToSacat([ (0,NodeQuickLayout), (1,NodeQuickExec) ], "Script", AtHomePoll)
-list_tupleСlsToPublic += [(6, NodeQuickLayout), (7, NodeQuickExec)]
+list_tupleСlsToPublic += [(5, NodeQuickLayout), (6, NodeQuickExec)]
 
 list_classesSolemn = []
 
@@ -1788,10 +1797,10 @@ def NsUpdateProcBg(self, context):
     def NsProcBg(hlState, alertState):
         if (alertState)and(any(self.alertColor)):
             dict_ndLastAlert[self] = alertState
-            MnTimerSetAlertColor(self, None)
-        elif self.propHlFromThere:
+            MnTimerUpdateSetAlertColor(self, None)
+        elif self.propHlFromTheme:
             self.use_custom_color = (hlState)and(self.isHlFromTheme)
-            props = self.propHlFromThere.split(".")
+            props = self.propHlFromTheme.split(".")
             self.color = getattr(getattr(bpy.context.preferences.themes[0].user_interface, props[0]), props[1])[:3]
         else:
             self.use_custom_color = False
@@ -1805,7 +1814,7 @@ class MntNodeSolemn(MntNodeAlertness): #Они самое приятное, чт
     alertColor: bpy.props.FloatVectorProperty(name="Alert color", default=(0.0, 0.0, 0.0), min=0, max=1, size=3, subtype='COLOR', update=NsUpdateProcBg)
     solemnName: bpy.props.StringProperty(name="Solemn Name", default="Ceremonial!")
     nclass = 8
-    propHlFromThere = ''
+    propHlFromTheme = ''
     def DrawExtPreChain(self, context, colLy):
         MntNodeAlertness.DrawExtPreChain(self, context, colLy)
         AddNiceColorProp(colLy, self,'solemnName', align=True)
@@ -1817,7 +1826,7 @@ class NodeSolemnBool(MntNodeSolemn):
     alerting: bpy.props.BoolProperty(name="Alert trigger", default=False, update=NsUpdateProcBg)
     decor: bpy.props.IntProperty(name="Decor", default=1, min=0, max=7, soft_min=1, soft_max=3)
     isHlFromTheme: bpy.props.BoolProperty(name="Highlighting from theme", default=True, update=NsUpdateProcBg)
-    propHlFromThere = 'wcol_option.inner_sel'
+    propHlFromTheme = 'wcol_option.inner_sel'
     execBgState = "NsProcBg(self.bool, self.bool^self.alerting)" #О нет; но иначе 'match self.bl_idname: case'. Я выбрал exec(), как меньше из двух зол эстетики.
     def InitNode(self, context):
         self.bool = True
@@ -1837,7 +1846,7 @@ class NodeSolemnFactor(MntNodeSolemn):
     factor: bpy.props.FloatProperty(name="Factor", default=0.0, min=0, max=1, subtype='FACTOR', update=NsUpdateProcBg)
     alerting: bpy.props.IntProperty(name="Alert trigger", default=0, min=-1, max=1, update=NsUpdateProcBg)
     isHlFromTheme: bpy.props.BoolProperty(name="Highlighting from theme", default=True, update=NsUpdateProcBg)
-    propHlFromThere = 'wcol_numslider.item'
+    propHlFromTheme = 'wcol_numslider.item'
     execBgState = "NsProcBg(not self.factor==0.0, not( (self.factor==0.0)and(self.alerting<1)or(self.factor==1.0)and(self.alerting>-1) ))"
     def InitNode(self, context):
         self.factor = 0.5
@@ -2152,4 +2161,4 @@ def unregister():
 
 if __name__=="__main__":
     register()
-    #MnUpdateAllNclassFromTree()
+#    MnUpdateAllNclassFromTree()
