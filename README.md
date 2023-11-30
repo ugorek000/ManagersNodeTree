@@ -16,8 +16,8 @@
 
 ![QnNpTbtf](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/be7e8f3e-e20b-4cb7-89ae-cf59adc9221e)
 
-![Ss](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/74595db9-5bf2-4bff-b025-f7d08789b382)
+![Ss](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/e9a71d33-3def-458c-8cc8-075560cf5ac9)
 
-![QlQe](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/7a4f0fb2-17c7-4160-bf33-a3ad979b3677)
+![QlQe](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/c28590c7-2ee0-47e3-a6ce-68ce00e455fb)
 
 ![Ntt](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/800e5b7b-3e1f-4802-9ba1-f841b59663f9)
