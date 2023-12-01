@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,2,5), 'blender':(4,0,1), #2023.12.01
+           'version':(2,2,6), 'blender':(4,0,1), #2023.12.02
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -20,8 +20,6 @@ list_clsToDrawAdn = []
 class AddonPrefs(bpy.types.AddonPreferences):
     bl_idname = thisAddonName
 
-dict_ndLastAlert = {}
-
 def GetDicsIco(tgl):
     return 'DISCLOSURE_TRI_DOWN' if tgl else 'DISCLOSURE_TRI_RIGHT'
 
@@ -29,6 +27,7 @@ def GetDicsIco(tgl):
 #менеджер кеймапов с обоими фильтрами одновременно
 #icon viewer
 #custom props manager full
+#высокоуровневый assertor
 
 class ManagersTree(bpy.types.NodeTree):
     """For .blend and other high level management"""
@@ -52,6 +51,8 @@ def MnUpdateAllNclassFromTree():
         for li in dict_tupleShiftAList[di].list_orderBlid:
             MnUpdateNclass(tree.nodes.new(li[1]))
     bpy.data.node_groups.remove(tree)
+
+dict_ndLastAlert = {}
 
 pw22 = 1/2.2
 def MnTimerUpdateSetAlertColor(nd, context):
@@ -260,6 +261,7 @@ def NntvTimerSetTagId(self, nclass):
 class NodeNclassTagViewer(MntNodeRoot):
     bl_idname = 'MntNodeNclassTagViewer'
     bl_label = "Nclass toggler"
+    bl_icon = 'EXPERIMENTAL'
     bl_width_min = 140
     bl_width_default = 200
     tagId: bpy.props.IntProperty(name="Tag", default=0, min=0, max=17, update=NntvUpdateTagId)
@@ -276,7 +278,15 @@ class NodeNclassTagViewer(MntNodeRoot):
 
 list_classes += [NodeNclassTagViewer]
 AddToSacat([ (2,NodeNclassTagViewer) ], "Self", AtHomePoll)
-list_tupleСlsToPublic += [(7, NodeNclassTagViewer)]
+list_tupleСlsToPublic += [(6, NodeNclassTagViewer)]
+
+#list_classesDev = []
+#for num in [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 32, 33, 40, 41, 42, 100]:
+#    exec(f"class NodeTestDev{num}(MntNodeRoot):"+"\n"+f" bl_idname = 'NodeTestDev{num}'"+"\n"+f" bl_label = 'NodeTestTag{num}'"+"\n"+f" nclass = {num}")
+#    exec(f"list_classesDev.append(NodeTestDev{num})")
+#list_classes += list_classesDev
+#for li in list_classesDev:
+#    AddToSacat([ (0,li) ], "Dev", AtHomePoll)
 
 def AddThinSep(where, scaleY=0.25, scaleX=1.0):
     row = where.row(align=True)
@@ -470,7 +480,7 @@ class MtlOp(bpy.types.Operator):
                 tree = context.space_data.edit_tree
                 if tree.nodes:
                     ndTar = tree.nodes.active
-                    if not ndTar:
+                    if (not ndTar)or(not ndTar.select):
                         min = 32768
                         for nd in tree.nodes:
                             len = nd.location.length
@@ -1012,6 +1022,7 @@ class NodeAddonsManager(MntNodeWithOnlyMatter): #Для этого аддона 
         colTotalTop = colTheme.column(align=True)
         box = colTheme.box()
         colAddons = box.column(align=True)
+        colErrors = colAddons.column(align=True)
         colTotalBottom = colTheme.column(align=True)
         #Prepare ly:
         dict_usedExt = {ext.module for ext in bpy.context.preferences.addons}
@@ -1134,7 +1145,10 @@ class NodeAddonsManager(MntNodeWithOnlyMatter): #Для этого аддона 
                                         row.label(icon='ERROR')
                                         row.alert = False
                                         row.label(text="Error (see console)")
-                                        colAddons.label(text=modName+" has error", icon='ERROR')
+                                        #А так же в "общий" итог:
+                                        row = colErrors.row(align=True)
+                                        #row.label(icon='BLANK1')
+                                        row.label(text=f"\"{modName}\" has error in draw().", icon='ERROR')
                                     del apClass.layout
                                 else:
                                     row = colAddon.row(align=True)
@@ -1295,7 +1309,7 @@ class NnOp(bpy.types.Operator):
                         ndRepr.linesCount = length(memo) #context.area.tag_redraw()
         return {'FINISHED'}
 
-def NnUpdateNodeNnNotepadLines(self, context):
+def NnUpdateCount(self, context):
     len = length(self.memo)
     for cyc in range(len, self.linesCount):
         ci = self.memo.add()
@@ -1311,12 +1325,12 @@ class NodeNotepad(MntNodeAlertness):
     bl_width_max = 2048
     bl_width_min = 140
     bl_width_default = 384
-    linesCount: bpy.props.IntProperty(name="Count of lines", min=0, max=256, soft_max=32, default=5, update=NnUpdateNodeNnNotepadLines)
+    linesCount: bpy.props.IntProperty(name="Count of lines", min=0, max=256, soft_max=32, default=0, update=NnUpdateCount)
     decorLinesCount: bpy.props.IntProperty(name="Decor Lines count", default=3, min=0, max=4)
     memo: bpy.props.CollectionProperty(type=NnNotepadLine)
     nclass = 32
     def InitNode(self, context):
-        self.linesCount = 5 #Заметка: NnUpdateNodeNnNotepadLines().
+        self.linesCount = 5 #Заметка: NnUpdateCount().
     def DrawInAddon(self, context, colLy, prefs):
         if colBox:=GetNodeBoxDiscl(colLy, prefs,'disclMnNn', self):
             colProps = colBox.column(align=True)
@@ -1361,7 +1375,7 @@ class NodeNotepad(MntNodeAlertness):
 list_classes += [NnNotepadLine, NnOp]
 list_classes += [NodeNotepad]
 AddToSacat([ (1,NodeNotepad) ], "Text", AtHomePoll)
-list_tupleСlsToPublic += [(8, NodeNotepad)]
+list_tupleСlsToPublic += [(7, NodeNotepad)]
 
 class AddonPrefs(AddonPrefs):
     disclMnNn: bpy.props.BoolProperty(name="DisclMnNn", default=False)
@@ -1380,7 +1394,7 @@ class NttfOp(bpy.types.Operator):
         if self.who:
             ndRepr = eval(self.who)
             match self.opt:
-                #todo0: отрендерить текст чтобы узнать его ширину, а потом ширину нода на максимальный из них.
+                #todo0 отрендерить текст чтобы узнать его ширину, а потом ширину нода на максимальный из них.
                 case 'Shield':
                     ndRepr.regex = re.sub(r'\\.|(?=[+*\()[\]{}.^$?|])', lambda a:"\\" if a.span()[1]-a.span()[0]==0 else a.group(), ndRepr.regex) #re.escape(ndRepr.regex)
                 case 'Warp':
@@ -1717,90 +1731,116 @@ list_classes += [NodeColorNotepad]
 AddToSacat([ (1,NodeColorNotepad) ], "Color", AtHomePoll)
 list_tupleСlsToPublic += [(2, NodeColorNotepad)]
 
-class NodeQuickLayoutAndExec(MntNodeRoot):
-    bl_width_max = 2048
-    bl_width_min = 64
-    bl_width_default = 300
-    tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
-    txt_exec: bpy.props.StringProperty(name="Exec")
-    order: bpy.props.BoolProperty(name="Order", default=False)
-    isOnlyMatter: bpy.props.BoolProperty(name="Matter display only", default=False)
-    nclass = 8
-    def draw_label(self):
-        return self.bl_label+("  –  "+self.tbPoi.name if self.tbPoi else "")
-    def AddTbPoi(self, colLy, can):
-        if (can)and(not self.isOnlyMatter):
-            colLy.prop(self,'tbPoi', text="")
-    def InitNodePreChain(self, context):
-        self.order = True
-    def DrawExtPreChain(self, context, colLy):
-        MntNodeRoot.DrawExtPreChain(self, context, colLy)
-        colLy.prop(self,'isOnlyMatter')
-        colLy.prop(self,'order')
-
-class NodeQuickLayout(NodeQuickLayoutAndExec):
-    bl_idname = 'MntNodeQuickLayout'
-    bl_label = "Quick Layout"
-    def InitNode(self, context):
-        #self.txt_exec = "ly.prop(context.scene.render,'engine')"
-        self.txt_exec = "ly.row().prop(context.scene.render, 'engine', expand=True)"
-    def DrawNode(self, context, colLy, prefs):
-        self.AddTbPoi(colLy, self.order)
-        EvalAndAddPropExtended(colLy, self,'txt_exec', "", icon='SCRIPT', txt_warning="exec() !"*prefs.allIsPlaceExecAlerts, alertWarn=True, canDraw=not self.isOnlyMatter)
-        self.AddTbPoi(colLy, not self.order)
-        try:
-            if not self.order:
-                exec(self.txt_exec, globals(), locals()|{'ly':colLy})
-            if self.tbPoi:
-                exec(self.tbPoi.as_string(), globals(), locals()|{'ly':colLy})
-            if self.order:
-                exec(self.txt_exec, globals(), locals()|{'ly':colLy})
-        except Exception as ex:
-            colLy.label(text=str(ex), icon='ERROR')
-
-class NqeOp(bpy.types.Operator):
+class NqleOp(bpy.types.Operator):
     bl_idname = 'mnt.node_op_nqe'
-    bl_label = "NqeOp"
+    bl_label = "NqleOp"
     bl_options = {'UNDO'}
     who: bpy.props.StringProperty()
     def execute(self, context):
         if self.who:
             ndRepr = eval(self.who)
-            ndRepr.error = ""
-            try:
-                if not ndRepr.order:
-                    exec(ndRepr.txt_exec, globals(), locals())
-                if ndRepr.tbPoi:
-                    exec(ndRepr.tbPoi.as_string(), globals(), locals())
-                if ndRepr.order:
-                    exec(ndRepr.txt_exec, globals(), locals())
-            except Exception as ex:
-                ndRepr.error = str(ex)
+            for ci in ndRepr.execs:
+                ci.error = ""
+                try:
+                    if ci.isTb:
+                        if ci.tbPoi:
+                            exec(ci.tbPoi.as_string(), globals(), locals())
+                    elif ci.txtExec:
+                        exec(ci.txtExec, globals(), locals())
+                except Exception as ex:
+                    ci.error = str(ex)
         return {'FINISHED'}
-class NodeQuickExec(NodeQuickLayoutAndExec):
-    bl_idname = 'MntNodeQuickExec'
-    bl_label = "Quick Exec"
-    decor: bpy.props.StringProperty(name="Decor")
+
+def NqleUpdateResetErrors(self, context):
+    if hasattr(self,'execs'):
+        for ci in self.execs:
+            ci.error = ""
+    else:
+        self.error = ""
+
+def NqleUpdateCount(self, context): #todo1 зашаблонить!
+    len = length(self.execs)
+    for cyc in range(len, self.count):
+        ci = self.execs.add()
+        ci.name = str(cyc)
+    for cyc in reversed(range(self.count, len)):
+        self.execs.remove(cyc)
+class NqleExecTxtTb(bpy.types.PropertyGroup):
+    isTb: bpy.props.BoolProperty(name="Toggle", default=False, update=NqleUpdateResetErrors)
+    tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
+    txtExec: bpy.props.StringProperty(name="Exec")
     error: bpy.props.StringProperty(name="Error")
+
+def NqleAddErr(where, inx, txt):
+    row = where.row(align=True)
+    if False:
+        rowInx = row.row(align=True)
+        rowInx.alignment = 'CENTER'
+        rowInx.label(text=str(int(inx)+1)+":")
+    row.label(text=txt, icon='ERROR')
+
+class NodeQuickLayoutExec(MntNodeRoot):
+    bl_idname = 'MntNodeQuickLayoutExec'
+    bl_label = "Quick Layout Exec"
+    bl_width_max = 2048
+    bl_width_min = 64
+    bl_width_default = 420
+    execs: bpy.props.CollectionProperty(type=NqleExecTxtTb)
+    count: bpy.props.IntProperty(name="Count of execs", min=0, max=16, soft_min=1, soft_max=6, default=1, update=NqleUpdateCount)
+    method: bpy.props.EnumProperty(name="Method", default='LAYOUT', items=( ('LAYOUT',"As Layout",""), ('EXEC',"As Exec","") ), update=NqleUpdateResetErrors)
+    isOnlyMatter: bpy.props.BoolProperty(name="Matter display only", default=False)
+    decor: bpy.props.StringProperty(name="Decor")
+    nclass = 8
+    def draw_label(self):
+        return "Quick "+("Layout" if self.method=='LAYOUT' else "Exec")
     def InitNode(self, context):
-        self.txt_exec = "context.node.txt_exec += \" #\""
+        self.count = 1
+        self.execs[0].txtExec = "ly.row().prop(context.scene.render, 'engine', expand=True)"
+        #self.execs[1].txtExec = "context.node.execs[1].txtExec += \" #\""
     def DrawExtNode(self, context, colLy, prefs):
-        AddNiceColorProp(colLy, self,'decor', align=True)
-        AddNiceColorProp(colLy, self,'error', align=True, decor=0)
+        colLy.prop(self,'isOnlyMatter')
+        colLy.row().prop(self,'method', expand=True)
+        if self.method=='EXEC':
+            AddNiceColorProp(colLy, self,'decor', align=True)
+        colLy.prop(self,'count')
     def DrawNode(self, context, colLy, prefs):
-        self.AddTbPoi(colLy, self.order)
-        EvalAndAddPropExtended(colLy, self,'txt_exec', "", icon='SCRIPT', txt_warning="exec() !"*prefs.allIsPlaceExecAlerts, alertWarn=True, canDraw=not self.isOnlyMatter, canExec=False)
-        self.AddTbPoi(colLy, not self.order)
-        colLy.operator(NqeOp.bl_idname, text=self.decor if self.decor else "Exec").who = repr(self)
-        if self.error:
-            colLy.label(text=self.error, icon='ERROR')
+        colListExs = colLy.column(align=True)
+        isLay = self.method=='LAYOUT'
+        txt_alert = "exec() !"*prefs.allIsPlaceExecAlerts #todo рефакторить EvalAndAddPropExtended от сюда, int и передавать prefs.
+        for ci in self.execs:
+            if not self.isOnlyMatter:
+                row = colListExs.row().row(align=True)
+                rowTgl = row.row(align=True)
+                isTb = ci.isTb
+                rowTgl.prop(ci,'isTb', text="", icon='GREASEPENCIL', emboss=True)#, invert_checkbox=isTb) #ADD  GREASEPENCIL
+                rowTgl.active = False
+                row.alert = not not ci.error
+                if isLay:
+                    try:
+                        if isTb:
+                            if ci.tbPoi:
+                                exec(ci.tbPoi.as_string(), globals(), locals()|{'ly':colLy})
+                        elif ci.txtExec:
+                            exec(ci.txtExec, globals(), locals()|{'ly':colLy})
+                    except Exception as ex:
+                        NqleAddErr(colLy, ci.name, str(ex))
+                        row.alert = True
+                if isTb:
+                    EvalAndAddPropExtended(row, ci,'tbPoi', "", txt_warning=txt_alert, alertWarn=True, canExec=False)
+                else:
+                    EvalAndAddPropExtended(row, ci,'txtExec', "", icon='SCRIPT', txt_warning=txt_alert, alertWarn=True, canExec=False)
+        if not isLay:
+            colLy.operator(NqleOp.bl_idname, text=self.decor if self.decor else "Exec").who = repr(self)
+            for ci in self.execs:
+                if ci.error:
+                    NqleAddErr(colLy, ci.name, ci.error)
 
 #todo0 наверное стоит запариться с кешированием для exec'а.
 
-list_classes += [NqeOp]
-list_classes += [NodeQuickLayout, NodeQuickExec]
-AddToSacat([ (0,NodeQuickLayout), (1,NodeQuickExec) ], "Script", AtHomePoll)
-list_tupleСlsToPublic += [(5, NodeQuickLayout), (6, NodeQuickExec)]
+list_classes += [NqleExecTxtTb, NqleOp]
+list_classes += [NodeQuickLayoutExec]
+AddToSacat([ (0,NodeQuickLayoutExec) ], "Script", AtHomePoll)
+list_tupleСlsToPublic += [(5, NodeQuickLayoutExec)]
 
 list_classesSolemn = []
 
@@ -2042,12 +2082,12 @@ class NgdfSearch:
         self.countLinks = 0
         self.list_ng = []
 
-class NgdfFinder:
+class NgdfDetector:
     def __init__(self):
         self.countFacts = 0
         self.list_all = []
 
-dict_ngdfFinder = {}
+dict_ngdfDetector = {}
 
 class NgdfOp(bpy.types.Operator):
     bl_idname = 'mnt.node_op_ngdf'
@@ -2059,7 +2099,7 @@ class NgdfOp(bpy.types.Operator):
             ndRepr = eval(self.who)
             match self.opt:
                 case 'FindRequest':
-                    list_result = dict_ngdfFinder[ndRepr]
+                    list_result = dict_ngdfDetector[ndRepr]
                     list_result.clear()
                     dict_ndlk = {}
                     for ng in bpy.data.node_groups:
@@ -2097,19 +2137,19 @@ def NgdfAddItem(where, ng):
     rowa.prop(ng,'use_fake_user', text="")
     rowa.active = False
     AddOp(row0, True, 'TRASH', False, 'Del', ng.name)
-class NodeNgDuplicateFinder(MntNodeAlertness):
-    bl_idname = 'MntNodeNgDuplicateFinder'
+class NodeNgDuplicateDetector(MntNodeAlertness):
+    bl_idname = 'MntNodeNgDuplicateDetector'
     bl_label = "Nodegroups duplicate finder"
     bl_icon = 'DUPLICATE' #Как удобно.
     bl_width_max = 2048
     bl_width_min = 256
     bl_width_default = 512
     def DrawNode(self, context, colLy, prefs):
-        dict_ngdfFinder.setdefault(self, NgdfFinder())
+        dict_ngdfDetector.setdefault(self, NgdfDetector())
         colList = colLy.column(align=True)
         rowTotal = colList.row(align=True)
         AddThinSep(colList, 0.5)
-        for li in dict_ngdfFinder[ndRepr].list_all:
+        for li in dict_ngdfDetector[ndRepr].list_all:
             box = colList.row().box()
             colItem = box.column(align=True)
             row = colItem.row(align=True)
@@ -2117,7 +2157,7 @@ class NodeNgDuplicateFinder(MntNodeAlertness):
             row.active = False
             for li in list_mat:
                 NgdfAddItem(colItem, li)
-        count = dict_ngdfFinder[ndRepr].countFacts
+        count = dict_ngdfDetector[ndRepr].countFacts
         if count:
             StencilTotalRow(prefs, rowTotal, ('DUPLICATE', count), decor=1)
         else:
@@ -2125,8 +2165,8 @@ class NodeNgDuplicateFinder(MntNodeAlertness):
         self.ProcAlertState(count)
 
 #list_classes += [NgdfOp]
-#list_classes += [NodeNgDuplicateFinder]
-#AddToSacat([ (2,NodeNgDuplicateFinder) ], "Special", AtHomePoll)
+#list_classes += [NodeNgDuplicateDetector]
+#AddToSacat([ (2,NodeNgDuplicateDetector) ], "Special", AtHomePoll)
 
 def Prefs():
     return bpy.context.preferences.addons[thisAddonName].preferences
@@ -2172,4 +2212,4 @@ def unregister():
 
 if __name__=="__main__":
     register()
-#    MnUpdateAllNclassFromTree()
+    #MnUpdateAllNclassFromTree()
