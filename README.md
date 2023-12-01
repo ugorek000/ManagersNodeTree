@@ -4,6 +4,8 @@
 
 ¯\\\_(ツ)\_/¯
 
+Далее картинки из версии 2.2.5:
+
 ![Ipt](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/27da0384-090a-49d8-bd24-b0ef14ce2213)
 
 ![Pnv](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/7485ded7-3564-4acb-a6f4-1e34b0f712ab)
