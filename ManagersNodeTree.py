@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,3,0), 'blender':(4,0,1), #2023.12.02
+           'version':(2,3,1), 'blender':(4,0,1), #2023.12.02
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -1767,12 +1767,11 @@ class NqleOp(bpy.types.Operator):
                         ci.error = str(ex)
         return {'FINISHED'}
 
+def NqleUpdateResetSelfError(self, context):
+    self.error = ""
 def NqleUpdateResetErrors(self, context):
-    if hasattr(self,'execs'):
-        for ci in self.execs:
-            ci.error = ""
-    else:
-        self.error = ""
+    for ci in self.execs:
+        ci.error = ""
 
 def NqleUpdateCount(self, context): #todo1 зашаблонить! #todo0 стоит ли защитить затирание данных?
     len = length(self.execs)
@@ -1782,10 +1781,10 @@ def NqleUpdateCount(self, context): #todo1 зашаблонить! #todo0 сто
     for cyc in reversed(range(self.count, len)):
         self.execs.remove(cyc)
 class NqleExecTxtTb(bpy.types.PropertyGroup):
-    isActive: bpy.props.BoolProperty(name="Active", default=True)
-    isTb: bpy.props.BoolProperty(name="Toggle", default=False, update=NqleUpdateResetErrors)
-    tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
-    txtExec: bpy.props.StringProperty(name="Exec")
+    isActive: bpy.props.BoolProperty(name="Active", default=True, update=NqleUpdateResetSelfError)
+    isTb: bpy.props.BoolProperty(name="Toggle", default=False, update=NqleUpdateResetSelfError)
+    tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text, update=NqleUpdateResetSelfError)
+    txtExec: bpy.props.StringProperty(name="Exec", update=NqleUpdateResetSelfError)
     error: bpy.props.StringProperty(name="Error")
 
 def NqleAddErr(where, inx, txt):
@@ -1837,7 +1836,8 @@ class NodeQuickLayoutExec(MntNodeRoot):
                 isTb = ci.isTb
                 rowTgl.prop(ci,'isTb', text="", icon='GREASEPENCIL', emboss=True)#, invert_checkbox=isTb) #ADD  GREASEPENCIL
                 rowTgl.active = False
-                row.alert = not not ci.error
+                if canDisplayErrors:
+                    row.alert = not not ci.error
                 if (isLayMode)and(ci.isActive):
                     try:
                         if isTb:
