@@ -16,7 +16,7 @@
 
 ![QnNpTbtf](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/be7e8f3e-e20b-4cb7-89ae-cf59adc9221e)
 
-![Ss](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/4b389371-8359-4fba-81af-129428ba3e14)
+![Ss](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/213acc08-c127-41b3-8b71-efe66425248c)
 
 ![Qle](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/be073959-36c6-4b6e-b96e-0115672a5e99)
 
