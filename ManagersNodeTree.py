@@ -545,7 +545,7 @@ class NodeManagersNodeTree(MntNodeRoot):
     def DrawExtNode(self, context, colLy, prefs):
         if not context.preferences.use_preferences_save:
             colLy.operator('wm.save_userpref', text="Save Preferences"+" *"*context.preferences.is_dirty)
-        colLy.operator(MntOpVersioning.bl_idname, text="Register old nodes")
+        colLy.operator(MntOpOldBlids.bl_idname, text="Register old nodes")
     def DrawNode(self, context, colLy, prefs):
         if True:
             rowLabel = colLy.row(align=True)
@@ -1814,7 +1814,7 @@ class NodeQuickLayoutExec(MntNodeRoot):
     def InitNode(self, context):
         self.count = 2
         self.execs[0].txtExec = "ly.prop(context.space_data.edit_tree.nodes.active, 'bl_idname')"
-        self.execs[1].txtExec = "#bpy.ops.node.add_node('INVOKE_DEFAULT', type=context.node.execs[0].txtExec, use_transform=True)" #"context.node.execs[1].txtExec += \" #\""
+        self.execs[1].txtExec = "#bpy.ops.node.add_node('INVOKE_DEFAULT', type=context.node.execs[0].txtExec, use_transform=True)"
     def DrawExtNode(self, context, colLy, prefs):
         colLy.prop(self,'isOnlyMatter')
         colLy.row().prop(self,'method', expand=True)
@@ -2234,12 +2234,12 @@ class AddonPrefs(AddonPrefs):
 list_classes += [AddonPrefs]
 
 def DoRegOldBlids():
-    class MntNodeVersioning(MntNodeRoot):
+    class MntNodeOldBlids(MntNodeRoot):
         def DrawPreChain(self, context, colLy):
             for li in self.__annotations__:
                 colLy.prop(self, li)
     # ===================================================================== FastNote
-    class VrFastNote(MntNodeVersioning):
+    class VrFastNote(MntNodeOldBlids):
         bl_idname = 'FastNote'
         bl_label = "FastNote"
         note: bpy.props.StringProperty(name="Note body", default="")
@@ -2248,7 +2248,7 @@ def DoRegOldBlids():
     class VrNotepadLine(bpy.types.PropertyGroup):
         txt_line: bpy.props.StringProperty(name="NpLTB", default="")
     bpy.utils.register_class(VrNotepadLine)
-    class VrNotepad(MntNodeVersioning):
+    class VrNotepad(MntNodeOldBlids):
         bl_idname = 'Notepad'
         bl_label = "Notepad"
         memo: bpy.props.CollectionProperty(type=VrNotepadLine)
@@ -2261,7 +2261,7 @@ def DoRegOldBlids():
         txt_prop: bpy.props.StringProperty(name="Prop Id", default="")
         txt_filter: bpy.props.StringProperty(name="Prop Filter", default="")
     bpy.utils.register_class(VrTablePropFilter)
-    class VrNodeItemPropPyManager(MntNodeVersioning):
+    class VrNodeItemPropPyManager(MntNodeOldBlids):
         bl_idname = 'ItemPropPyManager'
         bl_label = "Items Prop Manager"
         path:    bpy.props.StringProperty(name="Path",    default="")
@@ -2274,14 +2274,14 @@ def DoRegOldBlids():
                 colLy.prop(ci,'txt_filter')
     bpy.utils.register_class(VrNodeItemPropPyManager)
     # ===================================================================== PropsNamePyViewer
-    class VrNodePropsNameViewer(MntNodeVersioning):
+    class VrNodePropsNameViewer(MntNodeOldBlids):
         bl_idname = 'PropsNamePyViewer'
         bl_label = "Props Name Viewer"
         path:   bpy.props.StringProperty(name="Path",   default="")
         filter: bpy.props.StringProperty(name="Filter", default="")
     bpy.utils.register_class(VrNodePropsNameViewer)
     # ===================================================================== ScriptItemRunner
-    class VrNodeScriptItemRunner(MntNodeVersioning):
+    class VrNodeScriptItemRunner(MntNodeOldBlids):
         bl_idname = 'ScriptItemRunner'
         bl_label = "Script Item Runner"
         tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
@@ -2291,23 +2291,22 @@ def DoRegOldBlids():
         oneLine: bpy.props.StringProperty(name="oneLine", default="")
     bpy.utils.register_class(VrNodeScriptItemRunner)
     # ===================================================================== TextBlockTextFinder
-    class VrNodeTextBlockTextFinder(MntNodeVersioning):
+    class VrNodeTextBlockTextFinder(MntNodeOldBlids):
         bl_idname = 'TextBlockTextFinder'
         bl_label = "Textblock LineText Finder"
         regex: bpy.props.StringProperty(name="RegEx", default="")
         tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
         isDisplayAsProp: bpy.props.BoolProperty(name="Display as prop", default=True)
     bpy.utils.register_class(VrNodeTextBlockTextFinder)
-DoRegOldBlids()
 
-class MntOpVersioning(bpy.types.Operator):
-    bl_idname = 'mnt.node_op_versioning'
-    bl_label = "Versioning"
+class MntOpOldBlids(bpy.types.Operator):
+    bl_idname = 'mnt.node_op_oldblids'
+    bl_label = "OldBlids"
     bl_options = {'UNDO'}
     def execute(self, context):
         DoRegOldBlids()
         return {'FINISHED'}
-list_classes += [MntOpVersioning]
+list_classes += [MntOpOldBlids]
 
 list_tupleСlsToPublic.sort(key=lambda a:a[0])
 
