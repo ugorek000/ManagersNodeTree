@@ -4,8 +4,6 @@
 
 ¯\\\_(ツ)\_/¯
 
-Далее картинки из версии 2.2.5:
-
 ![Ipt](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/27da0384-090a-49d8-bd24-b0ef14ce2213)
 
 ![Pnv](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/7485ded7-3564-4acb-a6f4-1e34b0f712ab)
@@ -18,8 +16,8 @@
 
 ![QnNpTbtf](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/be7e8f3e-e20b-4cb7-89ae-cf59adc9221e)
 
-![Ss](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/e9a71d33-3def-458c-8cc8-075560cf5ac9)
+![Ss](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/4b389371-8359-4fba-81af-129428ba3e14)
 
-![QlQe](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/c28590c7-2ee0-47e3-a6ce-68ce00e455fb)
+![Qle](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/476320fe-04aa-4d74-a1f3-9dcf09e46628)
 
 ![Ntt](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/800e5b7b-3e1f-4802-9ba1-f841b59663f9)
