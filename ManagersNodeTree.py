@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,2,6), 'blender':(4,0,1), #2023.12.02
+           'version':(2,3,0), 'blender':(4,0,1), #2023.12.02
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -15,7 +15,8 @@ import math
 bl_ver = bpy.app.version
 
 list_classes = []
-list_clsToDrawAdn = []
+list_clsToAddon = []
+list_clsToChangeTag = []
 
 class AddonPrefs(bpy.types.AddonPreferences):
     bl_idname = thisAddonName
@@ -41,16 +42,20 @@ def MnUpdateNclass(nd):
     if hasattr(nd,'nclass'):
         BNode.get_fields(nd).typeinfo.contents.nclass = nd.nclass
 #        for wn in bpy.context.window_manager.windows:
-#            for ar in wn.screen.areas:
-#                ar.tag_redraw()
-#                break
+#            for ar in wn.screen.areas: ar.tag_redraw(); break
 
-def MnUpdateAllNclassFromTree():
-    tree = bpy.data.node_groups.new("tehn"+chr(8203), ManagersTree.bl_idname)
-    for di in dict_tupleShiftAList:
-        for li in dict_tupleShiftAList[di].list_orderBlid:
-            MnUpdateNclass(tree.nodes.new(li[1]))
-    bpy.data.node_groups.remove(tree)
+def MnUpdateAllNclassFromTree(tgl=True):
+    name = "tehn"+chr(8203)
+    tree = bpy.data.node_groups.get(name) or bpy.data.node_groups.new(name, ManagersTree.bl_idname)
+    for li in list_clsToChangeTag:
+        name = li.bl_idname
+        nd = tree.nodes.get(name) or tree.nodes.new(name)
+        nd.name = name
+        MnUpdateNclass(nd)
+        if tgl:
+            tree.nodes.remove(nd)
+    if tgl:
+        bpy.data.node_groups.remove(tree)
 
 dict_ndLastAlert = {}
 
@@ -279,13 +284,14 @@ class NodeNclassTagViewer(MntNodeRoot):
 list_classes += [NodeNclassTagViewer]
 AddToSacat([ (2,NodeNclassTagViewer) ], "Self", AtHomePoll)
 list_tupleСlsToPublic += [(6, NodeNclassTagViewer)]
+list_clsToChangeTag += [NodeNclassTagViewer]
 
-#list_classesDev = []
+#list_clsDev = []
 #for num in [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 13, 32, 33, 40, 41, 42, 100]:
 #    exec(f"class NodeTestDev{num}(MntNodeRoot):"+"\n"+f" bl_idname = 'NodeTestDev{num}'"+"\n"+f" bl_label = 'NodeTestTag{num}'"+"\n"+f" nclass = {num}")
-#    exec(f"list_classesDev.append(NodeTestDev{num})")
-#list_classes += list_classesDev
-#for li in list_classesDev:
+#    exec(f"list_clsDev.append(NodeTestDev{num})")
+#list_classes += list_clsDev
+#for li in list_clsDev:
 #    AddToSacat([ (0,li) ], "Dev", AtHomePoll)
 
 def AddThinSep(where, scaleY=0.25, scaleX=1.0):
@@ -539,6 +545,7 @@ class NodeManagersNodeTree(MntNodeRoot):
     def DrawExtNode(self, context, colLy, prefs):
         if not context.preferences.use_preferences_save:
             colLy.operator('wm.save_userpref', text="Save Preferences"+" *"*context.preferences.is_dirty)
+        colLy.operator(MntOpVersioning.bl_idname, text="Register old nodes")
     def DrawNode(self, context, colLy, prefs):
         if True:
             rowLabel = colLy.row(align=True)
@@ -786,6 +793,7 @@ list_classes += [NipmTablePropFilter]
 list_classes += [NodeItemPropsTable]
 AddToSacat([ (0,NodeItemPropsTable) ], "RNA", AtHomePoll)
 list_tupleСlsToPublic += [(4, NodeItemPropsTable)]
+list_clsToChangeTag += [NodeItemPropsTable]
 
 class AddonPrefs(AddonPrefs):
     disclMnNipt: bpy.props.BoolProperty(name="DisclMnNipt", default=False)
@@ -795,7 +803,7 @@ class AddonPrefs(AddonPrefs):
     niptDecorTotal: bpy.props.IntProperty(name="Decor Total", default=1, min=-1, max=1)
     niptIsPlaceDebug: bpy.props.BoolProperty(name="Place debug", default=False)
 
-list_clsToDrawAdn.append(NodeItemPropsTable)
+list_clsToAddon.append(NodeItemPropsTable)
 
 class NodePropsNameViewer(MntNodeRoot):
     bl_idname = 'MntNodePropsNamePyViewer'
@@ -878,6 +886,7 @@ class NodePropsNameViewer(MntNodeRoot):
 list_classes += [NodePropsNameViewer]
 AddToSacat([ (1,NodePropsNameViewer) ], "RNA", AtHomePoll)
 list_tupleСlsToPublic += [(3, NodePropsNameViewer)]
+list_clsToChangeTag += [NodePropsNameViewer]
 
 class AddonPrefs(AddonPrefs):
     disclMnNpnv: bpy.props.BoolProperty(name="DisclMnNpnv", default=False)
@@ -885,7 +894,7 @@ class AddonPrefs(AddonPrefs):
     npnvDecorTable: bpy.props.IntProperty(name="Decor Table", default=3, min=0, max=7)
     npnvDecorTotal: bpy.props.IntProperty(name="Decor Total", default=1, min=-1, max=1)
 
-list_clsToDrawAdn.append(NodePropsNameViewer)
+list_clsToAddon.append(NodePropsNameViewer)
 
 import addon_utils, os, functools
 
@@ -1251,6 +1260,7 @@ class NodeAddonsManager(MntNodeWithOnlyMatter): #Для этого аддона 
 list_classes += [NamAddons, NamOp]
 list_classes += [NodeAddonsManager]
 AddToSacat([ (99,NodeAddonsManager) ], "Managers", AtHomePoll)
+list_clsToChangeTag += [NodeAddonsManager]
 
 class AddonPrefs(AddonPrefs):
     disclMnNam: bpy.props.BoolProperty(name="DisclMnNam", default=False)
@@ -1263,7 +1273,7 @@ class AddonPrefs(AddonPrefs):
     namIsShowButtons: bpy.props.BoolProperty(name="Forcibly show buttons", default=False)
     namIsDetailedTotal: bpy.props.BoolProperty(name="Detailed total", default=False)
 
-list_clsToDrawAdn.append(NodeAddonsManager)
+list_clsToAddon.append(NodeAddonsManager)
 
 class NodeQuickNote(MntNodeAlertness):
     bl_idname = 'MntNodeQuickNote'
@@ -1280,6 +1290,7 @@ class NodeQuickNote(MntNodeAlertness):
 list_classes += [NodeQuickNote]
 AddToSacat([ (0,NodeQuickNote) ], "Text", AtHomePoll)
 list_tupleСlsToPublic += [(0, NodeQuickNote)]
+list_clsToChangeTag += [NodeQuickNote]
 
 class NnOp(bpy.types.Operator):
     bl_idname = 'mnt.node_op_nn'
@@ -1294,8 +1305,8 @@ class NnOp(bpy.types.Operator):
                 case 'CollapseEmpties':
                     warpTo = -1
                     memo = ndRepr.memo
-                    for cyc, line in enumerate(ndRepr.memo):
-                        if line.body:
+                    for cyc, ci in enumerate(ndRepr.memo):
+                        if ci.body:
                             if warpTo>-1:
                                 memo[warpTo].body = memo[cyc].body
                                 memo[warpTo].name = memo[cyc].name
@@ -1358,7 +1369,7 @@ class NodeNotepad(MntNodeAlertness):
         len = length(str(self.linesCount-1))
         canAlert = any(self.alertColor)
         alertAcc = False
-        for cyc, line in enumerate(self.memo):
+        for cyc, ci in enumerate(self.memo):
             rowLine = colNotepad.row(align=True)
             if decorNum:
                 rowNum = rowLine.row(align=True)
@@ -1366,9 +1377,9 @@ class NodeNotepad(MntNodeAlertness):
                 rowNum.active = decorNum>1
                 rowNum.label(text=str(cyc+1).zfill(len)+":")
             rowBody = (rowLine.row() if decorBody else rowLine).row(align=True)
-            rowBody.prop(line,'body', text="")
+            rowBody.prop(ci,'body', text="")
             if canAlert:
-                alertAcc |= not not line.body
+                alertAcc |= not not ci.body
         if canAlert:
             self.ProcAlertState(alertAcc)
 
@@ -1376,12 +1387,13 @@ list_classes += [NnNotepadLine, NnOp]
 list_classes += [NodeNotepad]
 AddToSacat([ (1,NodeNotepad) ], "Text", AtHomePoll)
 list_tupleСlsToPublic += [(7, NodeNotepad)]
+list_clsToChangeTag += [NodeNotepad]
 
 class AddonPrefs(AddonPrefs):
     disclMnNn: bpy.props.BoolProperty(name="DisclMnNn", default=False)
     nnDecorMemo: bpy.props.IntProperty(name="Decor Memo", default=4, min=0, max=11)
 
-list_clsToDrawAdn.append(NodeNotepad)
+list_clsToAddon.append(NodeNotepad)
 
 class NttfOp(bpy.types.Operator):
     bl_idname = 'mnt.node_op_nttf'
@@ -1614,6 +1626,7 @@ class NodeTextblockTextFinder(MntNodeWithOnlyMatter):
 list_classes += [NttfOp]
 list_classes += [NodeTextblockTextFinder]
 AddToSacat([ (2,NodeTextblockTextFinder) ], "Text", AtHomePoll)
+list_clsToChangeTag += [NodeTextblockTextFinder]
 
 class AddonPrefs(AddonPrefs):
     disclMnNttf: bpy.props.BoolProperty(name="DisclMnNttf", default=False)
@@ -1621,7 +1634,7 @@ class AddonPrefs(AddonPrefs):
     nttfDecorTable: bpy.props.IntProperty(name="Decor Table", default=2, min=0, max=3)
     nttfDecorTotal: bpy.props.IntProperty(name="Decor Total", default=1, min=-1, max=1)
 
-list_clsToDrawAdn.append(NodeTextblockTextFinder)
+list_clsToAddon.append(NodeTextblockTextFinder)
 
 import random
 
@@ -1640,7 +1653,7 @@ class NodeColorNote(MntNodeRoot):
     col: bpy.props.FloatVectorProperty(name="Color", size=3, soft_min=0, soft_max=1, subtype='COLOR', update=NcnUpdateCol)
     decorProp: bpy.props.BoolProperty(name="Decor Prop", default=True, update=NcnUpdateCol)
     decorHeight: bpy.props.IntProperty(name="Decor Height", default=3, min=2, max=6)
-    nclass = 2 #Первый несуществующий, потому что '1' имеет обработку активного, или я хрен знает.
+    nclass = 33#2
     def InitNode(self, context):
         self.col = (random.random(), random.random(), random.random()) #(0.628377, 0.849800, 0.916233)
     def DrawExtNode(self, context, colLy, prefs):
@@ -1656,6 +1669,7 @@ class NodeColorNote(MntNodeRoot):
 list_classes += [NodeColorNote]
 AddToSacat([ (0,NodeColorNote) ], "Color", AtHomePoll)
 list_tupleСlsToPublic += [(1, NodeColorNote)]
+list_clsToChangeTag += [NodeColorNote]
 
 dict_listSoldSkoLinks = {}
 
@@ -1716,7 +1730,7 @@ class NodeColorNotepad(MntNodeRoot):
     bl_width_default = 140
     colCount: bpy.props.IntProperty(name="Count", default=1, min=0, max=32, soft_min=1, soft_max=6, update=NcnUpdateColCount)
     decorHeight: bpy.props.IntProperty(name="Decor Height", default=2, min=2, max=4)
-    nclass = 2
+    nclass = 2 #Первый несуществующий, потому что '1' имеет обработку активного, и я хрен знает как оно работает.
     def InitNode(self, context):
         NcnUpdateColCount(self, context)
     def update(self):
@@ -1730,6 +1744,7 @@ list_classes += [NcnColSocket]
 list_classes += [NodeColorNotepad]
 AddToSacat([ (1,NodeColorNotepad) ], "Color", AtHomePoll)
 list_tupleСlsToPublic += [(2, NodeColorNotepad)]
+list_clsToChangeTag += [NodeColorNotepad]
 
 class NqleOp(bpy.types.Operator):
     bl_idname = 'mnt.node_op_nqe'
@@ -1741,14 +1756,15 @@ class NqleOp(bpy.types.Operator):
             ndRepr = eval(self.who)
             for ci in ndRepr.execs:
                 ci.error = ""
-                try:
-                    if ci.isTb:
-                        if ci.tbPoi:
-                            exec(ci.tbPoi.as_string(), globals(), locals())
-                    elif ci.txtExec:
-                        exec(ci.txtExec, globals(), locals())
-                except Exception as ex:
-                    ci.error = str(ex)
+                if ci.isActive:
+                    try:
+                        if ci.isTb:
+                            if ci.tbPoi:
+                                exec(ci.tbPoi.as_string(), globals(), locals())
+                        elif ci.txtExec:
+                            exec(ci.txtExec, globals(), locals())
+                    except Exception as ex:
+                        ci.error = str(ex)
         return {'FINISHED'}
 
 def NqleUpdateResetErrors(self, context):
@@ -1758,7 +1774,7 @@ def NqleUpdateResetErrors(self, context):
     else:
         self.error = ""
 
-def NqleUpdateCount(self, context): #todo1 зашаблонить!
+def NqleUpdateCount(self, context): #todo1 зашаблонить! #todo0 стоит ли защитить затирание данных?
     len = length(self.execs)
     for cyc in range(len, self.count):
         ci = self.execs.add()
@@ -1766,6 +1782,7 @@ def NqleUpdateCount(self, context): #todo1 зашаблонить!
     for cyc in reversed(range(self.count, len)):
         self.execs.remove(cyc)
 class NqleExecTxtTb(bpy.types.PropertyGroup):
+    isActive: bpy.props.BoolProperty(name="Active", default=True)
     isTb: bpy.props.BoolProperty(name="Toggle", default=False, update=NqleUpdateResetErrors)
     tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
     txtExec: bpy.props.StringProperty(name="Exec")
@@ -1786,36 +1803,42 @@ class NodeQuickLayoutExec(MntNodeRoot):
     bl_width_min = 64
     bl_width_default = 420
     execs: bpy.props.CollectionProperty(type=NqleExecTxtTb)
-    count: bpy.props.IntProperty(name="Count of execs", min=0, max=16, soft_min=1, soft_max=6, default=1, update=NqleUpdateCount)
+    count: bpy.props.IntProperty(name="Count of execs", min=0, max=32, soft_min=1, soft_max=6, default=1, update=NqleUpdateCount)
     method: bpy.props.EnumProperty(name="Method", default='LAYOUT', items=( ('LAYOUT',"As Layout",""), ('EXEC',"As Exec","") ), update=NqleUpdateResetErrors)
+    isIgnoreErrors: bpy.props.BoolProperty(name="Ignore errors", default=False)
     isOnlyMatter: bpy.props.BoolProperty(name="Matter display only", default=False)
     decor: bpy.props.StringProperty(name="Decor")
     nclass = 8
     def draw_label(self):
         return "Quick "+("Layout" if self.method=='LAYOUT' else "Exec")
     def InitNode(self, context):
-        self.count = 1
-        self.execs[0].txtExec = "ly.row().prop(context.scene.render, 'engine', expand=True)"
-        #self.execs[1].txtExec = "context.node.execs[1].txtExec += \" #\""
+        self.count = 2
+        self.execs[0].txtExec = "ly.prop(context.space_data.edit_tree.nodes.active, 'bl_idname')"
+        self.execs[1].txtExec = "#bpy.ops.node.add_node('INVOKE_DEFAULT', type=context.node.execs[0].txtExec, use_transform=True)" #"context.node.execs[1].txtExec += \" #\""
     def DrawExtNode(self, context, colLy, prefs):
         colLy.prop(self,'isOnlyMatter')
         colLy.row().prop(self,'method', expand=True)
         if self.method=='EXEC':
             AddNiceColorProp(colLy, self,'decor', align=True)
         colLy.prop(self,'count')
+        colLy.prop(self,'isIgnoreErrors')
     def DrawNode(self, context, colLy, prefs):
         colListExs = colLy.column(align=True)
-        isLay = self.method=='LAYOUT'
+        canDisplayErrors = not self.isIgnoreErrors
+        isLayMode = self.method=='LAYOUT'
         txt_alert = "exec() !"*prefs.allIsPlaceExecAlerts #todo рефакторить EvalAndAddPropExtended от сюда, int и передавать prefs.
         for ci in self.execs:
             if not self.isOnlyMatter:
                 row = colListExs.row().row(align=True)
+                rowEcAc = row.row(align=True)
+                rowEcAc.prop(ci,'isActive', text="")
+                rowEcAc.active = False #todo мб функцию для быстрого неактивного пропа.
                 rowTgl = row.row(align=True)
                 isTb = ci.isTb
                 rowTgl.prop(ci,'isTb', text="", icon='GREASEPENCIL', emboss=True)#, invert_checkbox=isTb) #ADD  GREASEPENCIL
                 rowTgl.active = False
                 row.alert = not not ci.error
-                if isLay:
+                if (isLayMode)and(ci.isActive):
                     try:
                         if isTb:
                             if ci.tbPoi:
@@ -1823,17 +1846,19 @@ class NodeQuickLayoutExec(MntNodeRoot):
                         elif ci.txtExec:
                             exec(ci.txtExec, globals(), locals()|{'ly':colLy})
                     except Exception as ex:
-                        NqleAddErr(colLy, ci.name, str(ex))
-                        row.alert = True
+                        if canDisplayErrors:
+                            NqleAddErr(colLy, ci.name, str(ex))
+                            row.alert = True
                 if isTb:
                     EvalAndAddPropExtended(row, ci,'tbPoi', "", txt_warning=txt_alert, alertWarn=True, canExec=False)
                 else:
                     EvalAndAddPropExtended(row, ci,'txtExec', "", icon='SCRIPT', txt_warning=txt_alert, alertWarn=True, canExec=False)
-        if not isLay:
+        if not isLayMode:
             colLy.operator(NqleOp.bl_idname, text=self.decor if self.decor else "Exec").who = repr(self)
-            for ci in self.execs:
-                if ci.error:
-                    NqleAddErr(colLy, ci.name, ci.error)
+            if canDisplayErrors:
+                for ci in self.execs:
+                    if ci.error:
+                        NqleAddErr(colLy, ci.name, ci.error)
 
 #todo0 наверное стоит запариться с кешированием для exec'а.
 
@@ -1841,8 +1866,9 @@ list_classes += [NqleExecTxtTb, NqleOp]
 list_classes += [NodeQuickLayoutExec]
 AddToSacat([ (0,NodeQuickLayoutExec) ], "Script", AtHomePoll)
 list_tupleСlsToPublic += [(5, NodeQuickLayoutExec)]
+list_clsToChangeTag += [NodeQuickLayoutExec]
 
-list_classesSolemn = []
+list_clsSolemn = []
 
 def NsUpdateProcBg(self, context):
     def NsProcBg(hlState, alertState):
@@ -1889,7 +1915,7 @@ class NodeSolemnBool(MntNodeSolemn):
         decor = self.decor
         solemnName = self.solemnName
         colLy.prop(self,'bool', text=" " if (decor//2%2)and(not solemnName)and(not decor//4) else solemnName, icon=('CHECKBOX_HLT' if self.bool else 'CHECKBOX_DEHLT') if decor//2%2 else 'NONE', emboss=decor%2)
-list_classesSolemn += [NodeSolemnBool]
+list_clsSolemn += [NodeSolemnBool]
 
 class NodeSolemnFactor(MntNodeSolemn):
     bl_idname = 'MntNodeSolemnFactor'
@@ -1906,7 +1932,7 @@ class NodeSolemnFactor(MntNodeSolemn):
         colLy.prop(self,'alerting')
     def DrawNode(self, context, colLy, prefs):
         colLy.prop(self, 'factor', text=self.solemnName)
-list_classesSolemn += [NodeSolemnFactor]
+list_clsSolemn += [NodeSolemnFactor]
 
 class NodeSolemnInteger(MntNodeSolemn):
     bl_idname = 'MntNodeSolemnInteger'
@@ -1915,7 +1941,7 @@ class NodeSolemnInteger(MntNodeSolemn):
     execBgState = "NsProcBg(self.integer, self.integer)"
     def DrawNode(self, context, colLy, prefs):
         colLy.prop(self, 'integer', text=self.solemnName)
-list_classesSolemn += [NodeSolemnInteger]
+list_clsSolemn += [NodeSolemnInteger]
 
 class NodeSolemnFloat(MntNodeSolemn):
     bl_idname = 'MntNodeSolemnFloat'
@@ -1924,7 +1950,7 @@ class NodeSolemnFloat(MntNodeSolemn):
     execBgState = "NsProcBg(self.float, self.float)"
     def DrawNode(self, context, colLy, prefs):
         colLy.prop(self, 'float', text=self.solemnName)
-list_classesSolemn += [NodeSolemnFloat]
+list_clsSolemn += [NodeSolemnFloat]
 
 class NodeSolemnColor(MntNodeSolemn):
     bl_idname = 'MntNodeSolemnColor'
@@ -1949,7 +1975,20 @@ class NodeSolemnColor(MntNodeSolemn):
                 colLy.row(align=True).prop(self,'colour', text=self.solemnName)
             else:
                 AddNiceColorProp(colLy, self,'colour', txt=self.solemnName)
-list_classesSolemn += [NodeSolemnColor]
+list_clsSolemn += [NodeSolemnColor]
+
+class NodeSolemnLayout(MntNodeSolemn):
+    bl_idname = 'MntNodeSolemnLayout'
+    bl_label = "Solemn Layout"
+    txt_exec: bpy.props.StringProperty(name="Text exec")
+    def InitNode(self, context):
+        self.txt_exec = "ly.row().prop(context.scene.render, 'engine', expand=True)"
+    def DrawNode(self, context, colLy, prefs):
+        colLy.prop(self, 'txt_exec', text="", icon='SCRIPT')
+        exec(self.txt_exec, globals(), locals()|{'ly':colLy})
+list_clsSolemn += [NodeSolemnLayout]
+
+#Dynamic solemn:
 
 def NsUpdateNdsExec(self, context):
     text = self.txt_exec
@@ -1984,9 +2023,13 @@ class NodeDynamicSolemnDyn(NodeDynamicSolemnMain):
 exec(execNodeDynamicSolemn)
 list_classes += [NodeDynamicSolemnDyn]
 
-list_classes += list_classesSolemn
-for cyc, li in enumerate(list_classesSolemn):
+##
+
+list_classes += list_clsSolemn
+for cyc, li in enumerate(list_clsSolemn):
     AddToSacat([(cyc,li)], "Solemn", AtHomePoll)
+list_clsToChangeTag += list_clsSolemn
+list_clsToChangeTag += [NodeDynamicSolemnDyn]
 
 class NodeUvManager(MntNodeWithOnlyMatter):
     bl_idname = 'MntUvManager'
@@ -2067,7 +2110,7 @@ class NodeUvManager(MntNodeWithOnlyMatter):
 
 list_classes += [NodeUvManager]
 AddToSacat([ (0,NodeUvManager) ], "Managers", AtHomePoll)
-
+list_clsToChangeTag += [NodeUvManager]
 
 dict_editorIcos = {'ShaderNodeTree':    'NODE_MATERIAL',
                    'CompositorNodeTree':'NODE_COMPOSITING',
@@ -2167,6 +2210,7 @@ class NodeNgDuplicateDetector(MntNodeAlertness):
 #list_classes += [NgdfOp]
 #list_classes += [NodeNgDuplicateDetector]
 #AddToSacat([ (2,NodeNgDuplicateDetector) ], "Special", AtHomePoll)
+#list_clsToChangeTag += [NodeNgDuplicateDetector]
 
 def Prefs():
     return bpy.context.preferences.addons[thisAddonName].preferences
@@ -2184,10 +2228,86 @@ class AddonPrefs(AddonPrefs):
         AddThinSep(colBox, 0.5) #Немножко декора; оступы меж двумя галками складываются; а так же отступ от (потенциальной) коробки.
         colBox.prop(self,'decorTotalRow')
         colBox.prop(self,'allIsBrightFilters')
-        for cls in list_clsToDrawAdn:
+        for cls in list_clsToAddon:
             cls.DrawInAddon(cls, context, colLy, self)
 
 list_classes += [AddonPrefs]
+
+def DoRegOldBlids():
+    class MntNodeVersioning(MntNodeRoot):
+        def DrawPreChain(self, context, colLy):
+            for li in self.__annotations__:
+                colLy.prop(self, li)
+    # ===================================================================== FastNote
+    class VrFastNote(MntNodeVersioning):
+        bl_idname = 'FastNote'
+        bl_label = "FastNote"
+        note: bpy.props.StringProperty(name="Note body", default="")
+    bpy.utils.register_class(VrFastNote)
+    # ===================================================================== Notepad
+    class VrNotepadLine(bpy.types.PropertyGroup):
+        txt_line: bpy.props.StringProperty(name="NpLTB", default="")
+    bpy.utils.register_class(VrNotepadLine)
+    class VrNotepad(MntNodeVersioning):
+        bl_idname = 'Notepad'
+        bl_label = "Notepad"
+        memo: bpy.props.CollectionProperty(type=VrNotepadLine)
+        def DrawNode(self, context, colLy, prefs):
+            for ci in self.memo:
+                colLy.prop(ci,'txt_line', text="")
+    bpy.utils.register_class(VrNotepad)
+    # ===================================================================== ItemPropPyManager
+    class VrTablePropFilter(bpy.types.PropertyGroup):
+        txt_prop: bpy.props.StringProperty(name="Prop Id", default="")
+        txt_filter: bpy.props.StringProperty(name="Prop Filter", default="")
+    bpy.utils.register_class(VrTablePropFilter)
+    class VrNodeItemPropPyManager(MntNodeVersioning):
+        bl_idname = 'ItemPropPyManager'
+        bl_label = "Items Prop Manager"
+        path:    bpy.props.StringProperty(name="Path",    default="")
+        props:   bpy.props.StringProperty(name="Props",   default="")
+        precomp: bpy.props.StringProperty(name="Precomp", default="")
+        filters: bpy.props.CollectionProperty(type=VrTablePropFilter)
+        def DrawNode(self, context, colLy, prefs):
+            for ci in self.filters:
+                colLy.prop(ci,'txt_prop')
+                colLy.prop(ci,'txt_filter')
+    bpy.utils.register_class(VrNodeItemPropPyManager)
+    # ===================================================================== PropsNamePyViewer
+    class VrNodePropsNameViewer(MntNodeVersioning):
+        bl_idname = 'PropsNamePyViewer'
+        bl_label = "Props Name Viewer"
+        path:   bpy.props.StringProperty(name="Path",   default="")
+        filter: bpy.props.StringProperty(name="Filter", default="")
+    bpy.utils.register_class(VrNodePropsNameViewer)
+    # ===================================================================== ScriptItemRunner
+    class VrNodeScriptItemRunner(MntNodeVersioning):
+        bl_idname = 'ScriptItemRunner'
+        bl_label = "Script Item Runner"
+        tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
+        path:    bpy.props.StringProperty(name="path",    default="")
+        filter:  bpy.props.StringProperty(name="filter",  default="")
+        asName:  bpy.props.StringProperty(name="asName",  default="")
+        oneLine: bpy.props.StringProperty(name="oneLine", default="")
+    bpy.utils.register_class(VrNodeScriptItemRunner)
+    # ===================================================================== TextBlockTextFinder
+    class VrNodeTextBlockTextFinder(MntNodeVersioning):
+        bl_idname = 'TextBlockTextFinder'
+        bl_label = "Textblock LineText Finder"
+        regex: bpy.props.StringProperty(name="RegEx", default="")
+        tbPoi: bpy.props.PointerProperty(name="Text Block", type=bpy.types.Text)
+        isDisplayAsProp: bpy.props.BoolProperty(name="Display as prop", default=True)
+    bpy.utils.register_class(VrNodeTextBlockTextFinder)
+DoRegOldBlids()
+
+class MntOpVersioning(bpy.types.Operator):
+    bl_idname = 'mnt.node_op_versioning'
+    bl_label = "Versioning"
+    bl_options = {'UNDO'}
+    def execute(self, context):
+        DoRegOldBlids()
+        return {'FINISHED'}
+list_classes += [MntOpVersioning]
 
 list_tupleСlsToPublic.sort(key=lambda a:a[0])
 
@@ -2212,4 +2332,4 @@ def unregister():
 
 if __name__=="__main__":
     register()
-    #MnUpdateAllNclassFromTree()
+    #MnUpdateAllNclassFromTree(False)
