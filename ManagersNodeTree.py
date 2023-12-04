@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,3,1), 'blender':(4,0,1), #2023.12.02
+           'version':(2,3,1), 'blender':(4,0,1), #2023.12.04
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -45,6 +45,9 @@ def MnUpdateNclass(nd):
 #            for ar in wn.screen.areas: ar.tag_redraw(); break
 
 def MnUpdateAllNclassFromTree(tgl=True):
+    global isDataOnRegisterDoneTgl
+    isDataOnRegisterDoneTgl = False
+    ##
     name = "tehn"+chr(8203)
     tree = bpy.data.node_groups.get(name) or bpy.data.node_groups.new(name, ManagersTree.bl_idname)
     for li in list_clsToChangeTag:
@@ -76,6 +79,8 @@ class MntPads():
     def DrawNode(self,context,colLy,prefs):pass
 class MntPreChainBase(bpy.types.Node, MntPads):
     def init(self, context):
+        if isDataOnRegisterDoneTgl: #Для первого ключения аддона, когда handlers.load_post очевидным образом не был доступен.
+            bpy.app.timers.register(functools.partial(MnUpdateAllNclassFromTree, True))
         #Записать в self.prefs = Prefs() почему не работает, пришлось в draw()'ах передавать.
         self.InitNodePreChain(context) #Редкий.
         self.InitNode(context)
@@ -911,7 +916,7 @@ class NamOp(bpy.types.Operator):
             subprocess.Popen(f"explorer /select,{self.txt}")
         return {'FINISHED'}
 
-def NamCreateNewCi(ndTar, adnName):
+def NamTimerCreateNewCi(ndTar, adnName):
     ci = ndTar.addons.add()
     ci.name = adnName
     ci.txt = adnName
@@ -1085,7 +1090,7 @@ class NodeAddonsManager(MntNodeWithOnlyMatter): #Для этого аддона 
                 #Disclosure:
                 rowDiscl = rowRecord.row(align=True)
                 if not self.addons.get(adnName, False):
-                    bpy.app.timers.register(functools.partial(NamCreateNewCi, self, adnName))
+                    bpy.app.timers.register(functools.partial(NamTimerCreateNewCi, self, adnName))
                     continue
                 ci = self.addons[adnName]
                 isDiscl = ci.discl
@@ -1347,9 +1352,9 @@ class NodeNotepad(MntNodeAlertness):
             colProps = colBox.column(align=True)
             colProps.prop(prefs,'nnDecorMemo')
     def DrawExtNode(self, context, colLy, prefs):
-        colLy.prop(self,'linesCount')
-        colLy.prop(self,'decorLinesCount')
         self.DrawInAddon(context, colLy, prefs)
+        colLy.prop(self,'decorLinesCount') #<^ стандартизовать #todo2. #todo3 настройки нода в аддоне -- отдельной панелью со своим poll на наличие.
+        colLy.prop(self,'linesCount')
         colLy.label(text="Operators:")
         op = colLy.operator(NnOp.bl_idname, text="Collapse empty lines")
         op.who = repr(self)
@@ -2314,9 +2319,7 @@ isDataOnRegisterDoneTgl = True
 
 @bpy.app.handlers.persistent
 def DataOnRegister(dummy, d):
-    global isDataOnRegisterDoneTgl
     if isDataOnRegisterDoneTgl:
-        isDataOnRegisterDoneTgl = False
         MnUpdateAllNclassFromTree() #Пока что это наилучший вариант.
 
 def register():
