@@ -587,7 +587,7 @@ AddToSacat([ (0,NodeManagersNodeTree), (1,NodeDummy) ], "Self", AtHomePoll)
 
 class NstSocketTest(bpy.types.NodeSocket):
     bl_label = "Test"
-    rawcol: bpy.props.FloatVectorProperty(name="Raw", size=4, default=(1,1,1,1), min=-1, max=222, subtype='COLOR')
+    rawcol: bpy.props.FloatVectorProperty(name="Raw", size=4, default=(1,1,1,1), min=-1, max=2, subtype='COLOR')
     def draw(self, context, layout, node, text):
         layout.label(text=self.name)
 class NstSocketTestDc(NstSocketTest):
@@ -618,10 +618,12 @@ class NodeSocketTest(MntNodeRoot):
         self.outputs.new(NstSocketTest1.bl_idname, "Dc")
         self.outputs.new(NstSocketTest2.bl_idname, "Dcs")
         self.outputs.new(NstSocketTest3.bl_idname, "Nothing")
+        self.outputs.new('Undef', "Undef")
         self.inputs.new(NstSocketTest0.bl_idname, "Dc Dcs")
         self.inputs.new(NstSocketTest1.bl_idname, "Dc")
         self.inputs.new(NstSocketTest2.bl_idname, "Dcs")
         self.inputs.new(NstSocketTest3.bl_idname, "Nothing")
+        self.inputs.new('Undef', "Undef")
     def DrawExtNode(self, context, colLy, prefs):
         for puts in [self.outputs, self.inputs]:
             col = colLy.column(align=True)
