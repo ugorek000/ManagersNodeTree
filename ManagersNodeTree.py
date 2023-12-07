@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,3,1), 'blender':(4,0,1), #2023.12.04
+           'version':(2,3,2), 'blender':(4,0,2), #2023.12.07
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -10,7 +10,7 @@ thisAddonName = bl_info['name']
 from builtins import len as length
 import bpy, re, ctypes
 import nodeitems_utils
-import math
+import math, mathutils
 
 bl_ver = bpy.app.version
 
@@ -90,9 +90,11 @@ class MntPreChainBase(bpy.types.Node, MntPads):
         self.DrawExtNode(context, colLy, Prefs())
     def draw_buttons(self, context, layout):
         colLy = layout.column()
-        #colLy.label(text=str(random.random())) #debug #todo0 посмотреть после глобальной вылизки.
+        prefs = Prefs()
+        if prefs.debugLy:
+            colLy.label(text=str(random.random()), icon='SEQUENCE_COLOR_0'+str(random.randint(1, 9)))
         self.DrawPreChain(context, colLy)
-        self.DrawNode(context, colLy, Prefs())
+        self.DrawNode(context, colLy, prefs)
 class MntNodeRoot(MntPreChainBase):
     def DrawExtPreChain(self, context, colLy):
         colLy.prop(self,'width', text="Node width", slider=True)
@@ -274,6 +276,7 @@ class NodeNclassTagViewer(MntNodeRoot):
     bl_icon = 'EXPERIMENTAL'
     bl_width_min = 140
     bl_width_default = 200
+    #nclass = 100 #33 #InitNode()
     tagId: bpy.props.IntProperty(name="Tag", default=0, min=0, max=17, update=NntvUpdateTagId)
     def DrawNode(self, context, colLy, prefs):
         tree = context.space_data.edit_tree
@@ -580,6 +583,54 @@ class NodeDummy(bpy.types.Node):
 
 list_classes += [NodeManagersNodeTree, NodeDummy]
 AddToSacat([ (0,NodeManagersNodeTree), (1,NodeDummy) ], "Self", AtHomePoll)
+
+
+class NstSocketTest(bpy.types.NodeSocket):
+    bl_label = "Test"
+    rawcol: bpy.props.FloatVectorProperty(name="Raw", size=4, default=(1,1,1,1), min=-1, max=222, subtype='COLOR')
+    def draw(self, context, layout, node, text):
+        layout.label(text=self.name)
+class NstSocketTestDc(NstSocketTest):
+    def draw_color(self, context, node):
+        return self.rawcol
+class NstSocketTestCs(NstSocketTest):
+    @classmethod
+    def draw_color_simple(cls):
+        return (0.5, 0.5, 0.5, 0.5)
+class NstSocketTest0(NstSocketTestDc, NstSocketTestCs):
+    bl_idname = 'NstSocketTest0'
+class NstSocketTest1(NstSocketTestDc):
+    bl_idname = 'NstSocketTest1'
+class NstSocketTest2(NstSocketTestCs):
+    bl_idname = 'NstSocketTest2'
+class NstSocketTest3(NstSocketTest):
+    bl_idname = 'NstSocketTest3'
+
+class NodeSocketTest(MntNodeRoot):
+    bl_idname = 'MntNodeSocketTest'
+    bl_label = "Socket test"
+    bl_width_max = 220
+    bl_width_min = 40
+    bl_width_default = 140
+    nclass = 2
+    def InitNode(self, context):
+        self.outputs.new(NstSocketTest0.bl_idname, "Dc Dcs")
+        self.outputs.new(NstSocketTest1.bl_idname, "Dc")
+        self.outputs.new(NstSocketTest2.bl_idname, "Dcs")
+        self.outputs.new(NstSocketTest3.bl_idname, "Nothing")
+    def DrawExtNode(self, context, colLy, prefs):
+        for sk in self.outputs:
+            rowSk = colLy.row(align=True)
+            rowSk.prop(sk,'name', text="")
+            if hasattr(sk,'draw_color'):
+                row = rowSk.row(align=True)
+                row.ui_units_x = 1.1
+                row.prop(sk,'rawcol', text="")
+
+list_classes += [NstSocketTest0, NstSocketTest1, NstSocketTest2, NstSocketTest3]
+list_classes += [NodeSocketTest]
+AddToSacat([ (3,NodeSocketTest) ], "Special", AtHomePoll)
+list_clsToChangeTag += [NodeSocketTest]
 
 def NipmAddTableOfProps(self, prefs, where, data, list_props, colSpec=None, canSep=True): #Некоторый бардак; было бы круто перелизать всё.
     def Eix(ix):
@@ -1264,7 +1315,7 @@ class NodeAddonsManager(MntNodeWithOnlyMatter): #Для этого аддона 
 
 list_classes += [NamAddons, NamOp]
 list_classes += [NodeAddonsManager]
-AddToSacat([ (99,NodeAddonsManager) ], "Managers", AtHomePoll)
+AddToSacat([ (99,NodeAddonsManager) ], "Special", AtHomePoll)
 list_clsToChangeTag += [NodeAddonsManager]
 
 class AddonPrefs(AddonPrefs):
@@ -1371,7 +1422,7 @@ class NodeNotepad(MntNodeAlertness):
             rowProp.prop(self,'linesCount')
             rowProp.active = decorLinesCount%2
         colNotepad = colLy.column(align=decorBody<2)
-        len = length(str(self.linesCount-1))
+        len = length(str(self.linesCount))
         canAlert = any(self.alertColor)
         alertAcc = False
         for cyc, ci in enumerate(self.memo):
@@ -1679,7 +1730,7 @@ list_clsToChangeTag += [NodeColorNote]
 dict_listSoldSkoLinks = {}
 
 def RectRerouteWalker(skTar, skCur, isEve): #"Щепотка RANTO".
-    if not skCur.is_output:#and sk.node.type=='RETOUTE'
+    if not skCur.is_output:#and skCur.node.type=='RETOUTE'
         skCur = skCur.node.outputs[0]
     for lk in dict_listSoldSkoLinks.get(skCur, []):
         lk.is_muted = isEve #Омг, почему в иви не работает?
@@ -1688,7 +1739,7 @@ def RectRerouteWalker(skTar, skCur, isEve): #"Щепотка RANTO".
             lk.to_socket.cache = skTar.cache
             lk.to_socket.node.outputs[0].cache = skTar.cache
             RectRerouteWalker(skTar, lk.to_socket, isEve)
-        elif lk.to_socket.bl_rna.properties['default_value'].is_array:
+        elif (lk.to_socket.bl_rna.properties.get('default_value'))and(lk.to_socket.bl_rna.properties['default_value'].is_array):
             try:
                 lk.to_socket.default_value = (skTar.default_value[0], skTar.default_value[1], skTar.default_value[2], 1)
             except:
@@ -1993,48 +2044,47 @@ class NodeSolemnLayout(MntNodeSolemn):
         exec(self.txt_exec, globals(), locals()|{'ly':colLy})
 list_clsSolemn += [NodeSolemnLayout]
 
-#Dynamic solemn:
+if False:
+    #Dynamic solemn:
+    def NsUpdateNdsExec(self, context):
+        text = self.txt_exec
+        bpy.utils.unregister_class(NodeDynamicSolemnDyn)
+        try:
+            exec(execNodeDynamicSolemn.replace("#@", text))
+        except:
+            exec(execNodeDynamicSolemn)
+        bpy.utils.register_class(NodeDynamicSolemnDyn)
+        MnUpdateNclass(self)
+    class NodeDynamicSolemnRoot(MntNodeSolemn):
+        bl_idname = 'MntNodeDynamicSolemn'
+        txt_exec: bpy.props.StringProperty(name="Exec", update=NsUpdateNdsExec)
+        isOnlyMatter: bpy.props.BoolProperty(name="Matter display only", default=False, update=NsUpdateProcBg)
+        def InitNode(self, context):
+            self.txt_exec = "abc: bpy.props.FloatVectorProperty(name=\"Vec4\", size=5, subtype='COLOR')"
+    #Получилось вяло, и не "сохранятеся". Неплохо было бы придумать, как сделать их разными для разных нод в рамках одного класса. Не могу допетрить, как работают классические "Custom Properties".
+    class NodeDynamicSolemnMain(NodeDynamicSolemnRoot):
+        bl_label = "Custom Solemn"
+        bl_width_default = 317+math.pi
+        def DrawNode(self, context, colLy, prefs):
+            colLy.label(text="Dynamically, for all in class", icon="INFO")
+            EvalAndAddPropExtended(colLy, self,'txt_exec', "", icon='SCRIPT', txt_warning="exec() !"*prefs.allIsPlaceExecAlerts, alertWarn=True, canDraw=not self.isOnlyMatter, canExec=False)
+            for li in NodeDynamicSolemnDyn.__annotations__:
+                if hasattr(self, li):
+                    colLy.prop(self, li)
+    execNodeDynamicSolemn = """
+    global NodeDynamicSolemnDyn
+    class NodeDynamicSolemnDyn(NodeDynamicSolemnMain):
+        #@
+        pass"""
+    exec(execNodeDynamicSolemn)
+    list_classes += [NodeDynamicSolemnDyn]
+    list_clsToChangeTag += [NodeDynamicSolemnDyn]
 
-def NsUpdateNdsExec(self, context):
-    text = self.txt_exec
-    bpy.utils.unregister_class(NodeDynamicSolemnDyn)
-    try:
-        exec(execNodeDynamicSolemn.replace("#@", text))
-    except:
-        exec(execNodeDynamicSolemn)
-    bpy.utils.register_class(NodeDynamicSolemnDyn)
-    MnUpdateNclass(self)
-class NodeDynamicSolemnRoot(MntNodeSolemn):
-    bl_idname = 'MntNodeDynamicSolemn'
-    txt_exec: bpy.props.StringProperty(name="Exec", update=NsUpdateNdsExec)
-    isOnlyMatter: bpy.props.BoolProperty(name="Matter display only", default=False, update=NsUpdateProcBg)
-    def InitNode(self, context):
-        self.txt_exec = "abc: bpy.props.FloatVectorProperty(name=\"Vec4\", size=5, subtype='COLOR')"
-#Получилось вяло, и не "сохранятеся". Неплохо было бы придумать, как сделать их разными для разных нод в рамках одного класса. Не могу допетрить, как работают классические "Custom Properties".
-class NodeDynamicSolemnMain(NodeDynamicSolemnRoot):
-    bl_label = "Custom Solemn"
-    bl_width_default = 317+math.pi
-    def DrawNode(self, context, colLy, prefs):
-        colLy.label(text="Dynamically, for all in class", icon="INFO")
-        EvalAndAddPropExtended(colLy, self,'txt_exec', "", icon='SCRIPT', txt_warning="exec() !"*prefs.allIsPlaceExecAlerts, alertWarn=True, canDraw=not self.isOnlyMatter, canExec=False)
-        for li in NodeDynamicSolemnDyn.__annotations__:
-            if hasattr(self, li):
-                colLy.prop(self, li)
-execNodeDynamicSolemn = """
-global NodeDynamicSolemnDyn
-class NodeDynamicSolemnDyn(NodeDynamicSolemnMain):
-    #@
-    pass"""
-exec(execNodeDynamicSolemn)
-list_classes += [NodeDynamicSolemnDyn]
-
-##
 
 list_classes += list_clsSolemn
 for cyc, li in enumerate(list_clsSolemn):
     AddToSacat([(cyc,li)], "Solemn", AtHomePoll)
 list_clsToChangeTag += list_clsSolemn
-list_clsToChangeTag += [NodeDynamicSolemnDyn]
 
 class NodeUvManager(MntNodeWithOnlyMatter):
     bl_idname = 'MntUvManager'
@@ -2220,6 +2270,7 @@ class NodeNgDuplicateDetector(MntNodeAlertness):
 def Prefs():
     return bpy.context.preferences.addons[thisAddonName].preferences
 class AddonPrefs(AddonPrefs):
+    debugLy: bpy.props.BoolProperty(name="Debug draw", default=False)
     allIsPlaceExecAlerts: bpy.props.BoolProperty(name="Place exec alerts", default=True)
     decorTotalRow: bpy.props.IntProperty(name="Decor Total Row", default=21, min=0, max=63)
     allIsBrightFilters: bpy.props.BoolProperty(name="Bright filters", default=True)
@@ -2228,6 +2279,7 @@ class AddonPrefs(AddonPrefs):
         box = GetLabeledDoubleBox(colLy, "Main", active=True, alignment='CENTER')
         colBox = box.column(align=True)
         #colBox.column().box()
+        colBox.prop(self,'debugLy')
         colBox.prop(self,'allIsPlaceExecAlerts')
         #colBox.column().box()
         AddThinSep(colBox, 0.5) #Немножко декора; оступы меж двумя галками складываются; а так же отступ от (потенциальной) коробки.
@@ -2334,4 +2386,4 @@ def unregister():
 
 if __name__=="__main__":
     register()
-    #MnUpdateAllNclassFromTree(False)
+    MnUpdateAllNclassFromTree(False)
