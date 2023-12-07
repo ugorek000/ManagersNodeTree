@@ -618,18 +618,24 @@ class NodeSocketTest(MntNodeRoot):
         self.outputs.new(NstSocketTest1.bl_idname, "Dc")
         self.outputs.new(NstSocketTest2.bl_idname, "Dcs")
         self.outputs.new(NstSocketTest3.bl_idname, "Nothing")
+        self.inputs.new(NstSocketTest0.bl_idname, "Dc Dcs")
+        self.inputs.new(NstSocketTest1.bl_idname, "Dc")
+        self.inputs.new(NstSocketTest2.bl_idname, "Dcs")
+        self.inputs.new(NstSocketTest3.bl_idname, "Nothing")
     def DrawExtNode(self, context, colLy, prefs):
-        for sk in self.outputs:
-            rowSk = colLy.row(align=True)
-            rowSk.prop(sk,'name', text="")
-            if hasattr(sk,'draw_color'):
-                row = rowSk.row(align=True)
-                row.ui_units_x = 1.1
-                row.prop(sk,'rawcol', text="")
+        for puts in [self.outputs, self.inputs]:
+            col = colLy.column(align=True)
+            for sk in puts:
+                rowSk = col.row(align=True)
+                rowSk.prop(sk,'name', text="")
+                if hasattr(sk,'draw_color'):
+                    row = rowSk.row(align=True)
+                    row.ui_units_x = 1.1
+                    row.prop(sk,'rawcol', text="")
 
 list_classes += [NstSocketTest0, NstSocketTest1, NstSocketTest2, NstSocketTest3]
 list_classes += [NodeSocketTest]
-AddToSacat([ (3,NodeSocketTest) ], "Special", AtHomePoll)
+AddToSacat([ (99,NodeSocketTest) ], "Special", AtHomePoll)
 list_clsToChangeTag += [NodeSocketTest]
 
 def NipmAddTableOfProps(self, prefs, where, data, list_props, colSpec=None, canSep=True): #Некоторый бардак; было бы круто перелизать всё.
@@ -1315,7 +1321,7 @@ class NodeAddonsManager(MntNodeWithOnlyMatter): #Для этого аддона 
 
 list_classes += [NamAddons, NamOp]
 list_classes += [NodeAddonsManager]
-AddToSacat([ (99,NodeAddonsManager) ], "Special", AtHomePoll)
+AddToSacat([ (1,NodeAddonsManager) ], "Special", AtHomePoll)
 list_clsToChangeTag += [NodeAddonsManager]
 
 class AddonPrefs(AddonPrefs):
