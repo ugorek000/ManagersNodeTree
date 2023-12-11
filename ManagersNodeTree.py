@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,3,2), 'blender':(4,0,2), #2023.12.07
+           'version':(2,3,3), 'blender':(4,0,2), #2023.12.11
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -139,7 +139,7 @@ class Sacat(): #"Sacat" = "ShiftA Category".
         self.ClsPoll = ClsPoll
         self.list_orderBlid = []
 
-list_sacatOrder = ["Managers", "Special", "RNA", "Color", "Text", "Solemn", "Script", "Self"]
+list_sacatOrder = ["Managers", "Special", "RNA", "Color", "Text", "Solemn", "Script", "Self", "Exotic"]
 dist_sacatOrderMap = {li:cyc for cyc, li in enumerate(list_sacatOrder)}
 
 def AddToSacat(list_orderClass, name, ClsPoll):
@@ -233,6 +233,19 @@ class BNode(StructBase): #source\blender\makesdna\DNA_node_types.h:
     flag:       ctypes.c_int
     idname:     ctypes.c_char*64
     typeinfo:   ctypes.POINTER(BNodeType)
+    @classmethod
+    def get_fields(cls, so):
+        return cls.from_address(so.as_pointer())
+
+class BNodeSocket(StructBase): #Для MntNodeJoinFLoat.
+    next:                   ctypes.c_void_p
+    prev:                   ctypes.c_void_p
+    prop:                   ctypes.c_void_p
+    identifier:             ctypes.c_char*64
+    name:                   ctypes.c_char*64
+    storage:                ctypes.c_void_p
+    type:                   ctypes.c_short
+    flag:                   ctypes.c_short
     @classmethod
     def get_fields(cls, so):
         return cls.from_address(so.as_pointer())
@@ -507,6 +520,7 @@ class MtlOp(bpy.types.Operator):
                         for nd in tree.nodes:
                             nd.location -= loc
                             nd.location = (math.floor(nd.location.x/20-0.5)*20, math.floor(nd.location.y/20-0.5)*20)
+                            nd.width = int(nd.width/20)*20
                             nd.select = False
                         tree.nodes.active = None
         return {'FINISHED'}
@@ -575,70 +589,11 @@ class NodeDummy(bpy.types.Node):
     bl_label = "Dummy Node"
     bl_width_max = 1024
     bl_width_min = 0
-    @classmethod
-    def poll(cls, tree):
-        return tree.bl_idname==ManagersTree.bl_idname
     def draw_buttons_ext(self, context, layout):
         layout.prop(self,'width', text="Node width", slider=True)
 
 list_classes += [NodeManagersNodeTree, NodeDummy]
 AddToSacat([ (0,NodeManagersNodeTree), (1,NodeDummy) ], "Self", AtHomePoll)
-
-
-class NstSocketTest(bpy.types.NodeSocket):
-    bl_label = "Test"
-    rawcol: bpy.props.FloatVectorProperty(name="Raw", size=4, default=(1,1,1,1), min=-1, max=2, subtype='COLOR')
-    def draw(self, context, layout, node, text):
-        layout.label(text=self.name)
-class NstSocketTestDc(NstSocketTest):
-    def draw_color(self, context, node):
-        return self.rawcol
-class NstSocketTestCs(NstSocketTest):
-    @classmethod
-    def draw_color_simple(cls):
-        return (0.5, 0.5, 0.5, 0.5)
-class NstSocketTest0(NstSocketTestDc, NstSocketTestCs):
-    bl_idname = 'NstSocketTest0'
-class NstSocketTest1(NstSocketTestDc):
-    bl_idname = 'NstSocketTest1'
-class NstSocketTest2(NstSocketTestCs):
-    bl_idname = 'NstSocketTest2'
-class NstSocketTest3(NstSocketTest):
-    bl_idname = 'NstSocketTest3'
-
-class NodeSocketTest(MntNodeRoot):
-    bl_idname = 'MntNodeSocketTest'
-    bl_label = "Socket test"
-    bl_width_max = 220
-    bl_width_min = 40
-    bl_width_default = 140
-    nclass = 2
-    def InitNode(self, context):
-        self.outputs.new(NstSocketTest0.bl_idname, "Dc Dcs")
-        self.outputs.new(NstSocketTest1.bl_idname, "Dc")
-        self.outputs.new(NstSocketTest2.bl_idname, "Dcs")
-        self.outputs.new(NstSocketTest3.bl_idname, "Nothing")
-        self.outputs.new('Undef', "Undef")
-        self.inputs.new(NstSocketTest0.bl_idname, "Dc Dcs")
-        self.inputs.new(NstSocketTest1.bl_idname, "Dc")
-        self.inputs.new(NstSocketTest2.bl_idname, "Dcs")
-        self.inputs.new(NstSocketTest3.bl_idname, "Nothing")
-        self.inputs.new('Undef', "Undef")
-    def DrawExtNode(self, context, colLy, prefs):
-        for puts in [self.outputs, self.inputs]:
-            col = colLy.column(align=True)
-            for sk in puts:
-                rowSk = col.row(align=True)
-                rowSk.prop(sk,'name', text="")
-                if hasattr(sk,'draw_color'):
-                    row = rowSk.row(align=True)
-                    row.ui_units_x = 1.1
-                    row.prop(sk,'rawcol', text="")
-
-list_classes += [NstSocketTest0, NstSocketTest1, NstSocketTest2, NstSocketTest3]
-list_classes += [NodeSocketTest]
-AddToSacat([ (99,NodeSocketTest) ], "Special", AtHomePoll)
-list_clsToChangeTag += [NodeSocketTest]
 
 def NipmAddTableOfProps(self, prefs, where, data, list_props, colSpec=None, canSep=True): #Некоторый бардак; было бы круто перелизать всё.
     def Eix(ix):
@@ -2274,6 +2229,81 @@ class NodeNgDuplicateDetector(MntNodeAlertness):
 #list_classes += [NodeNgDuplicateDetector]
 #AddToSacat([ (2,NodeNgDuplicateDetector) ], "Special", AtHomePoll)
 #list_clsToChangeTag += [NodeNgDuplicateDetector]
+
+def NjfTypeItems(self, context):
+    if self.fieldType=='BOOLEAN':
+        return ( ('AND',"And",""), ('OR',"Or","") )
+    else:
+        return ( ('MAX',"Maximum",""), ('ADD',"Addition",""), ('MIN',"Minimum","") )
+
+def NjfUpdateType(self, context):
+    for puts in [self.inputs, self.outputs]:
+        for sk in puts:
+            sk.enabled = sk.type==self.fieldType
+    if (self.fieldType=='BOOLEAN')and(self.method==''):
+        self.method = 'AND'
+    #self.nclass = 4 if self.fieldType=='VECTOR' else 8
+    #MnUpdateNclass(self)
+
+class NodeJoinField(MntNodeRoot):
+    bl_idname = 'MntNodeJoinField'
+    bl_label = "Join Field"
+    fieldType: bpy.props.EnumProperty(name="Type", default='VALUE', items=( ('VALUE',"Float",""), ('VECTOR',"Vector",""), ('BOOLEAN',"Boolean","") ), update=NjfUpdateType)
+    method: bpy.props.EnumProperty(name="Method", default=0, items=NjfTypeItems)
+    nclass = 8
+    def draw_label(self):
+        return "Join "+self.bl_rna.properties['fieldType'].enum_items[self.fieldType].name
+    def InitNode(self, context):
+        list_blids = ['NodeSocketFloat', 'NodeSocketVector', 'NodeSocketBool']
+        for li in list_blids:
+            self.outputs.new(li, "Value")
+        for li in list_blids:
+            sk = self.inputs.new(li, "Values")
+            BNodeSocket.get_fields(sk).flag = 2048
+            sk.hide_value = True
+        self.fieldType = 'VALUE'
+    def DrawNode(self, context, colLy, prefs):
+        colLy.prop(self,'fieldType', text="")
+        colLy.prop(self,'method', text="")
+
+list_classes += [NodeJoinField]
+AddToSacat([ (1,NodeJoinField) ], "Exotic", AtHomePoll)
+list_clsToChangeTag += [NodeJoinField]
+
+
+class NstSocketTest(bpy.types.NodeSocket):
+    bl_label = "Test"
+    rawcol: bpy.props.FloatVectorProperty(name="Raw", size=4, default=(1,1,1,1), min=-1, max=2, subtype='COLOR')
+    def draw(self, context, layout, node, text):
+        layout.label(text=self.name)
+class NstSocketTestDc(NstSocketTest):
+    def draw_color(self, context, node):
+        return self.rawcol
+class NstSocketTestCs(NstSocketTest):
+    @classmethod
+    def draw_color_simple(cls):
+        return (0.5, 0.5, 0.5, 0.5)
+class NstSocketTest0(NstSocketTestDc, NstSocketTestCs):
+    bl_idname = 'NstSocketTest0'
+class NstSocketTest1(NstSocketTestDc):
+    bl_idname = 'NstSocketTest1'
+class NstSocketTest2(NstSocketTestCs):
+    bl_idname = 'NstSocketTest2'
+class NstSocketTest3(NstSocketTest):
+    bl_idname = 'NstSocketTest3'
+
+#        for puts in [self.outputs, self.inputs]:
+#            col = colLy.column(align=True)
+#            for sk in puts:
+#                rowSk = col.row(align=True)
+#                rowSk.prop(sk,'name', text="")
+#                if hasattr(sk,'draw_color'):
+#                    row = rowSk.row(align=True)
+#                    row.ui_units_x = 1.1
+#                    row.prop(sk,'rawcol', text="")
+
+#list_classes += [NstSocketTest0, NstSocketTest1, NstSocketTest2, NstSocketTest3]
+
 
 def Prefs():
     return bpy.context.preferences.addons[thisAddonName].preferences
