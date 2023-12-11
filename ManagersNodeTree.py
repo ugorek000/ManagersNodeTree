@@ -1,5 +1,5 @@
 bl_info = {'name':"ManagersNodeTree", 'author':"ugorek",
-           'version':(2,3,3), 'blender':(4,0,2), #2023.12.11
+           'version':(2,3,4), 'blender':(4,0,2), #2023.12.11
            'description':"For .blend and other high level management.",
            'location':"NodeTreeEditor",
            'warning':"Имеет неизведанным образом ненулевой риск (ненулевого) повреждения данных. Будьте аккуратны и делайте бэкапы.",
@@ -41,8 +41,8 @@ list_classes += [ManagersTree]
 def MnUpdateNclass(nd):
     if hasattr(nd,'nclass'):
         BNode.get_fields(nd).typeinfo.contents.nclass = nd.nclass
-#        for wn in bpy.context.window_manager.windows:
-#            for ar in wn.screen.areas: ar.tag_redraw(); break
+        #for wn in bpy.context.window_manager.windows:
+        #    for ar in wn.screen.areas: ar.tag_redraw(); break
 
 def MnUpdateAllNclassFromTree(tgl=True):
     global isDataOnRegisterDoneTgl
@@ -144,7 +144,11 @@ dist_sacatOrderMap = {li:cyc for cyc, li in enumerate(list_sacatOrder)}
 
 def AddToSacat(list_orderClass, name, ClsPoll):
     dict_tupleShiftAList.setdefault(name, Sacat(ClsPoll))
-    dict_tupleShiftAList[name].list_orderBlid += [(li[0], li[1].bl_idname) for li in list_orderClass]
+    for li in list_orderClass:
+        len = length(li)
+        sett = li[2] if len>2 else {}
+        labl = li[3] if len>3 else None
+        dict_tupleShiftAList[name].list_orderBlid.append( (li[0], li[1].bl_idname, labl, sett) )
 
 list_tupleСlsToPublic = []
 
@@ -178,9 +182,10 @@ def RegisterNodeCategories():
     list_nodeCategories = []
     for li in sorted(dict_tupleShiftAList.items(), key=lambda a: dist_sacatOrderMap.get(a[0], -1)):
         name = li[0]
+        items = [nodeitems_utils.NodeItem(li[1], label=li[2], settings=li[3]) for li in sorted(li[1].list_orderBlid, key=lambda a:a[0])]
         list_nodeCategories.append(li[1].ClsPoll(name.replace(" ", ""), #Заметка: идентификатор так же не должен оканчиваться на "_".
                                                  name.replace("_", ""), #См. в AddToSacat(); имя и идентификатор используются с одного и того же (пробел выше не поможет для одного слова).
-                                                 items=[nodeitems_utils.NodeItem(li[1]) for li in sorted(li[1].list_orderBlid, key=lambda a:a[0])]))
+                                                 items=items))
     try:
         nodeitems_utils.register_node_categories(mntSaCatName, list_nodeCategories)
     except:
@@ -190,6 +195,28 @@ def RegisterNodeCategories():
 def UnregisterNodeCategories():
     nodeitems_utils.unregister_node_categories(mntSaCatName)
     DoPublish(False)
+
+#node_categories = [
+#    # identifier, label, items list
+#    MyNodeCategory('SOMENODES', "Some Nodes", items=[
+#        # our basic node
+#        NodeItem("CustomNodeType"),
+#    ]),
+#    MyNodeCategory('OTHERNODES', "Other Nodes", items=[
+#        # the node item can have additional settings,
+#        # which are applied to new nodes
+#        # NOTE: settings values are stored as string expressions,
+#        # for this reason they should be converted to strings using repr()
+#        NodeItem("CustomNodeType", label="Node A", settings={
+#            "my_string_prop": repr("Lorem ipsum dolor sit amet"),
+#            "my_float_prop": repr(1.0),
+#        }),
+#        NodeItem("CustomNodeType", label="Node B", settings={
+#            "my_string_prop": repr("consectetur adipisicing elit"),
+#            "my_float_prop": repr(2.0),
+#        }),
+#    ]),
+#]
 
 class StructBase(ctypes.Structure):
     _subclasses = []
@@ -303,7 +330,7 @@ class NodeNclassTagViewer(MntNodeRoot):
             colLy.prop(self,'tagId', text=f"{tuple[0]}  –  {tuple[1]}", slider=True)
 
 list_classes += [NodeNclassTagViewer]
-AddToSacat([ (2,NodeNclassTagViewer) ], "Self", AtHomePoll)
+AddToSacat([ (99,NodeNclassTagViewer) ], "Self", AtHomePoll)
 list_tupleСlsToPublic += [(6, NodeNclassTagViewer)]
 list_clsToChangeTag += [NodeNclassTagViewer]
 
@@ -2267,9 +2294,72 @@ class NodeJoinField(MntNodeRoot):
         colLy.prop(self,'method', text="")
 
 list_classes += [NodeJoinField]
-AddToSacat([ (1,NodeJoinField) ], "Exotic", AtHomePoll)
+AddToSacat([ (0,NodeJoinField) ], "Exotic", AtHomePoll)
 list_clsToChangeTag += [NodeJoinField]
 
+
+def NeTimerInit(nd):
+    def GetAllCanonSkIds():
+        list_result = []
+        set_ignored = {'NodeSocket', 'NodeSocketStandard'}
+        for li in dir(bpy.types):
+            if (li.startswith('NodeSocket'))and(li not in set_ignored)and(length([True for ch in li if ord(ch) in range(65,91)])==3):
+                list_result.append( (li, getattr(bpy.types, li).bl_rna.name.replace(" Node Socket", "")) )
+        return list_result
+    nd.doneExtend = True
+    match nd.extendKey:
+        case 'AllSks':
+            for id, nm in GetAllCanonSkIds():
+                nd.outputs.new(id, nm)
+                nd.inputs.new(id, nm).hide_value = True
+            nd.nodeLabel = "All sockets"
+        case 'EveryoneMultiinputs':
+            def AddMi(id, nm):
+                sk = nd.inputs.new(id, nm)
+                BNodeSocket.get_fields(sk).flag = 2048
+                sk.hide_value = True
+            for id, nm in GetAllCanonSkIds():
+                AddMi(id, nm)
+            AddMi('Undef', "Undef")
+            nd.nodeLabel = "Multiinputs"
+        case 'SkTests':
+            def AddHideSk(puts, id, name):
+                sk = puts.new(id, name)
+                sk.hide_value = True
+                return sk
+            for puts in [nd.inputs, nd.outputs]:
+                AddHideSk(puts, 'NodeSocketVector', "Canon")
+                AddHideSk(puts, NstSocketTest0.bl_idname, "Black").rawcol = (0, 0, 0, 1)
+                AddHideSk(puts, NstSocketTest0.bl_idname, "Gray").rawcol = (0.5, 0.5, 0.5, 1.0)
+                AddHideSk(puts, NstSocketTest0.bl_idname, "Transparent").rawcol = (1.0, 0.5, 0.0, 0.0)
+                AddHideSk(puts, NstSocketTest0.bl_idname, "Dc Dcs").rawcol = (1.0, 1.0, 0.5, 1.0)
+                AddHideSk(puts, NstSocketTest0.bl_idname, "High1").rawcol = (2.0, 1.0, 0.5, 1.0)
+                AddHideSk(puts, NstSocketTest0.bl_idname, "High2").rawcol = (2.0, 1.5, 1.0, 0.5)
+                AddHideSk(puts, NstSocketTest1.bl_idname, "Neg").rawcol = (-1, -1, -1, 1)
+                AddHideSk(puts, NstSocketTest1.bl_idname, "NegAl").rawcol = (0.125, 1, 0.0625, -1)
+                AddHideSk(puts, NstSocketTest2.bl_idname, "Dcs").rawcol = (0.5, 0.5, 0.5, 0.5)
+                AddHideSk(puts, NstSocketTest3.bl_idname, "Nothing")
+                AddHideSk(puts, 'Undef', "Undef")
+    
+class NodeExtender(MntNodeRoot):
+    bl_idname = 'MntNodeExtender'
+    bl_label = "Node Extender"
+    doneExtend: bpy.props.BoolProperty(name="DoneExtend", default=False)
+    extendKey: bpy.props.StringProperty(name="ExtendKey", default="")
+    nodeLabel: bpy.props.StringProperty(name="Node label", default="")
+    nclass = 2
+    def draw_label(self):
+        return self.nodeLabel
+    def DrawNode(self, context, colLy, prefs):
+        if not self.doneExtend:
+            bpy.app.timers.register(functools.partial(NeTimerInit, self))
+
+list_classes += [NodeExtender]
+AddToSacat([ (1,NodeExtender) ], "Self", AtHomePoll)
+AddToSacat([ (1,NodeExtender, {'extendKey':repr('AllSks')}, "All sockets") ], "Exotic", AtHomePoll)
+AddToSacat([ (2,NodeExtender, {'extendKey':repr('SkTests')}, "Socket test") ], "Exotic", AtHomePoll)
+AddToSacat([ (3,NodeExtender, {'extendKey':repr('EveryoneMultiinputs')}, "Multiinputs") ], "Exotic", AtHomePoll)
+list_clsToChangeTag += [NodeExtender]
 
 class NstSocketTest(bpy.types.NodeSocket):
     bl_label = "Test"
@@ -2292,18 +2382,7 @@ class NstSocketTest2(NstSocketTestCs):
 class NstSocketTest3(NstSocketTest):
     bl_idname = 'NstSocketTest3'
 
-#        for puts in [self.outputs, self.inputs]:
-#            col = colLy.column(align=True)
-#            for sk in puts:
-#                rowSk = col.row(align=True)
-#                rowSk.prop(sk,'name', text="")
-#                if hasattr(sk,'draw_color'):
-#                    row = rowSk.row(align=True)
-#                    row.ui_units_x = 1.1
-#                    row.prop(sk,'rawcol', text="")
-
-#list_classes += [NstSocketTest0, NstSocketTest1, NstSocketTest2, NstSocketTest3]
-
+list_classes += [NstSocketTest0, NstSocketTest1, NstSocketTest2, NstSocketTest3]
 
 def Prefs():
     return bpy.context.preferences.addons[thisAddonName].preferences
