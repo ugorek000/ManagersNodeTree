@@ -21,3 +21,5 @@
 ![Qle](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/be073959-36c6-4b6e-b96e-0115672a5e99)
 
 ![Ntt](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/800e5b7b-3e1f-4802-9ba1-f841b59663f9)
+
+![wallpaper](https://github.com/ugorek000/ManagersNodeTree/assets/120259754/ce98dfb5-a73e-4086-80c2-0cd57c6146ea)
